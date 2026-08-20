@@ -59,8 +59,10 @@ const elements = {
   form: document.querySelector("#recordForm"),
   formPanel: document.querySelector(".form-panel"),
   formTitle: document.querySelector("#formTitle"),
+  modeSwitch: document.querySelector(".mode-switch"),
   modePoda: document.querySelector("#modePoda"),
   modeBrecha: document.querySelector("#modeBrecha"),
+  viewSwitch: document.querySelector(".view-switch"),
   viewWork: document.querySelector("#viewWork"),
   viewDatabase: document.querySelector("#viewDatabase"),
   workView: document.querySelector("#workView"),
@@ -588,6 +590,7 @@ function clearForm() {
 }
 
 function render() {
+  elements.modeSwitch.dataset.mode = currentMode;
   elements.modePoda.classList.toggle("active", currentMode === "poda");
   elements.modeBrecha.classList.toggle("active", currentMode === "brecha");
   renderViewState();
@@ -616,6 +619,7 @@ function render() {
 
 function renderViewState() {
   const isDatabase = currentView === "database";
+  elements.viewSwitch.dataset.view = currentView;
   elements.viewWork.classList.toggle("active", !isDatabase);
   elements.viewDatabase.classList.toggle("active", isDatabase);
   elements.workView.classList.toggle("view-hidden", isDatabase);

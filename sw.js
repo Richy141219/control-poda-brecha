@@ -1,4 +1,4 @@
-const CACHE_NAME = "control-poda-brecha-v9";
+const CACHE_NAME = "control-poda-brecha-v10";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -57,3 +57,4 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
