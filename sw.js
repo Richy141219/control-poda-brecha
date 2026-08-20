@@ -1,4 +1,4 @@
-const CACHE_NAME = "control-poda-brecha-v5";
+const CACHE_NAME = "control-poda-brecha-v6";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "/brecha-data.js",
   "/manifest.webmanifest",
   "/icon.svg",
+  "/assets/cfe-logo.png",
   "/vendor/leaflet.css",
   "/vendor/leaflet.js",
   "/vendor/xlsx.full.min.js",
