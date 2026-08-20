@@ -135,6 +135,8 @@ elements.exportCsv.addEventListener("click", exportCsv);
 elements.resetData.addEventListener("click", resetData);
 elements.latitud.addEventListener("input", updatePreviewMarker);
 elements.longitud.addEventListener("input", updatePreviewMarker);
+elements.brechaEfectivaM.addEventListener("input", updateCalculatedBrechaHectareas);
+elements.brechaAncho.addEventListener("input", updateCalculatedBrechaHectareas);
 window.addEventListener("resize", handleViewportResize);
 window.addEventListener("online", syncPendingDatabase);
 window.addEventListener("offline", updateConnectionStatus);
@@ -482,6 +484,15 @@ function saveRecord(event) {
 }
 
 function saveBrechaSegment() {
+  const calculatedHectareas = calculateBrechaHectareas(
+    Number(elements.brechaEfectivaM.value),
+    Number(elements.brechaAncho.value)
+  );
+
+  elements.brechaHectareas.value = Number.isFinite(calculatedHectareas)
+    ? calculatedHectareas.toFixed(3)
+    : "";
+
   const segment = {
     id: elements.brechaId.value || createId(),
     sheet: "Manual",
@@ -493,7 +504,7 @@ function saveBrechaSegment() {
     totalM: Number(elements.brechaTotalM.value),
     efectivaM: Number(elements.brechaEfectivaM.value),
     ancho: Number(elements.brechaAncho.value),
-    hectareas: Number(elements.brechaHectareas.value)
+    hectareas: calculatedHectareas
   };
 
   const error = validateBrechaSegment(segment);
@@ -544,6 +555,25 @@ function validateBrechaSegment(segment) {
   }
 
   return "";
+}
+
+function updateCalculatedBrechaHectareas() {
+  const hectareas = calculateBrechaHectareas(
+    Number(elements.brechaEfectivaM.value),
+    Number(elements.brechaAncho.value)
+  );
+
+  elements.brechaHectareas.value = Number.isFinite(hectareas)
+    ? hectareas.toFixed(3)
+    : "";
+}
+
+function calculateBrechaHectareas(efectivaM, ancho) {
+  if (!Number.isFinite(efectivaM) || !Number.isFinite(ancho) || efectivaM < 0 || ancho < 0) {
+    return NaN;
+  }
+
+  return Math.round((efectivaM * ancho / 10000) * 1000) / 1000;
 }
 
 function clearForm() {
@@ -1443,7 +1473,7 @@ function fillBrechaForm(segment) {
   elements.brechaTotalM.value = segment.totalM;
   elements.brechaEfectivaM.value = segment.efectivaM;
   elements.brechaAncho.value = segment.ancho;
-  elements.brechaHectareas.value = segment.hectareas;
+  updateCalculatedBrechaHectareas();
   elements.editMode.classList.remove("hidden");
   elements.cancelEdit.classList.remove("hidden");
   elements.brechaLatInicio.focus();

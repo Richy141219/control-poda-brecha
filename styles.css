@@ -380,6 +380,12 @@ button:disabled {
   opacity: 0.6;
 }
 
+input[readonly] {
+  background: var(--surface-soft);
+  color: var(--primary-dark);
+  font-weight: 900;
+}
+
 .form-error {
   min-height: 18px;
   margin: 0;
