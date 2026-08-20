@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#176b4d">
+    <title>Control de Poda Urbana</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="vendor/leaflet.css">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">CP</div>
+          <div>
+            <p class="eyebrow">Control operativo</p>
+            <h1>Control de Poda y Brecha</h1>
+          </div>
+        </div>
+
+        <div class="header-controls">
+          <div class="mode-switch" aria-label="Tipo de trabajo">
+            <button id="modePoda" type="button" class="mode-button active">Poda</button>
+            <button id="modeBrecha" type="button" class="mode-button">Brecha</button>
+          </div>
+
+          <nav class="view-switch" aria-label="Vista">
+            <button id="viewWork" type="button" class="view-button active">Trabajo</button>
+            <button id="viewDatabase" type="button" class="view-button">Base de datos</button>
+          </nav>
+
+          <span id="saveStatus" class="save-status" aria-live="polite">Sin cambios nuevos</span>
+        </div>
+      </header>
+
+      <section class="action-toolbar" aria-label="Acciones principales">
+        <div class="actions">
+          <input id="excelInput" class="file-input" type="file" accept=".xlsx,.xls,.csv,.kml,.kmz">
+          <button id="importExcel" type="button" class="secondary">Agregar Excel/KMZ</button>
+          <button id="saveChanges" type="button">Guardar cambios</button>
+          <button id="openChart" type="button" class="secondary">Graficar</button>
+          <button id="reportPdf" type="button" class="secondary">Generar PDF</button>
+          <button id="exportCsv" type="button" class="secondary">Exportar CSV</button>
+          <button id="resetData" type="button" class="ghost">Restaurar Excel</button>
+        </div>
+      </section>
+
+      <main class="layout">
+      <div id="workView" class="work-view">
+      <section class="panel form-panel" aria-labelledby="formTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Captura</p>
+            <h2 id="formTitle">Nuevo registro</h2>
+          </div>
+          <span id="editMode" class="status-pill hidden">Editando</span>
+        </div>
+
+        <form id="recordForm" autocomplete="off">
+          <input type="hidden" id="recordId">
+          <input type="hidden" id="brechaId">
+
+          <label class="poda-field">
+            Latitud
+            <input id="latitud" name="latitud" type="number" step="0.0000001" min="-90" max="90" required>
+          </label>
+
+          <label class="poda-field">
+            Longitud
+            <input id="longitud" name="longitud" type="number" step="0.0000001" min="-180" max="180" required>
+          </label>
+
+          <label class="poda-field">
+            Numero de arboles podados
+            <input id="arboles" name="arboles" type="number" min="0" step="1" required>
+          </label>
+
+          <label class="poda-field">
+            Nombre del lugar
+            <input id="lugar" name="lugar" type="text" required>
+          </label>
+
+          <label class="poda-field">
+            Circuito
+            <input id="circuito" name="circuito" type="text" required>
+          </label>
+
+          <label class="poda-field">
+            Tipo de poda
+            <select id="tipoPoda" name="tipoPoda" required>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+            </select>
+          </label>
+
+          <label class="poda-field wide">
+            Entre estructuras
+            <input id="estructuras" name="estructuras" type="text" placeholder="76 - 77" required>
+          </label>
+
+          <label class="brecha-field hidden">
+            Numero / tramo
+            <input id="brechaNumero" name="brechaNumero" type="text" placeholder="1">
+          </label>
+
+          <label class="brecha-field">
+            Latitud inicio
+            <input id="brechaLatInicio" name="brechaLatInicio" type="number" step="0.0000001" min="-90" max="90" required>
+          </label>
+
+          <label class="brecha-field">
+            Longitud inicio
+            <input id="brechaLongInicio" name="brechaLongInicio" type="number" step="0.0000001" min="-180" max="180" required>
+          </label>
+
+          <label class="brecha-field">
+            Latitud fin
+            <input id="brechaLatFin" name="brechaLatFin" type="number" step="0.0000001" min="-90" max="90" required>
+          </label>
+
+          <label class="brecha-field">
+            Longitud fin
+            <input id="brechaLongFin" name="brechaLongFin" type="number" step="0.0000001" min="-180" max="180" required>
+          </label>
+
+          <label class="brecha-field">
+            Total m
+            <input id="brechaTotalM" name="brechaTotalM" type="number" min="0" step="0.01" required>
+          </label>
+
+          <label class="brecha-field">
+            Efectiva m
+            <input id="brechaEfectivaM" name="brechaEfectivaM" type="number" min="0" step="0.01" required>
+          </label>
+
+          <label class="brecha-field">
+            Ancho
+            <input id="brechaAncho" name="brechaAncho" type="number" min="0" step="0.01" required>
+          </label>
+
+          <label class="brecha-field">
+            Hectareas
+            <input id="brechaHectareas" name="brechaHectareas" type="number" min="0" step="0.001" required>
+          </label>
+
+          <p id="formError" class="form-error" role="alert"></p>
+
+          <div class="form-actions">
+            <button type="submit">Guardar registro</button>
+            <button id="cancelEdit" type="button" class="secondary hidden">Cancelar</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="map-area" aria-labelledby="mapTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Georreferencia</p>
+            <h2 id="mapTitle">Mapa de coordenadas</h2>
+            <p id="mapSubtitle">Puntos cargados desde el Excel base.</p>
+          </div>
+          <span id="outlierBadge" class="warning-pill hidden">Revisar coordenadas</span>
+        </div>
+        <div id="map" class="map" role="application" aria-label="Mapa de coordenadas registradas"></div>
+      </section>
+
+      <section class="metrics" aria-label="Resumen">
+        <div class="metric">
+          <span>Registros</span>
+          <strong id="totalRegistros">0</strong>
+        </div>
+        <div class="metric">
+          <span>Arboles podados</span>
+          <strong id="totalArboles">0</strong>
+        </div>
+        <div class="metric">
+          <span>Tipo A</span>
+          <strong id="totalTipoA">0</strong>
+        </div>
+        <div class="metric">
+          <span>Tipo B</span>
+          <strong id="totalTipoB">0</strong>
+        </div>
+      </section>
+
+      <section id="chartPanel" class="chart-panel hidden" aria-labelledby="chartTitle">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Analitica</p>
+            <h2 id="chartTitle">Grafica de cantidades</h2>
+            <p id="chartSubtitle">Resumen visual de los datos cargados.</p>
+          </div>
+          <div class="chart-controls">
+            <label>
+              Tipo
+              <select id="chartType">
+                <option value="bar">Barras</option>
+                <option value="pie">Pastel</option>
+              </select>
+            </label>
+            <button id="closeChart" type="button" class="ghost">Cerrar</button>
+          </div>
+        </div>
+        <div id="chartBody" class="chart-body" aria-live="polite">
+          <canvas id="chartCanvas" aria-label="Grafica de cantidades" role="img"></canvas>
+        </div>
+      </section>
+      </div>
+
+      <section id="databaseView" class="table-panel view-hidden" aria-labelledby="tableTitle">
+        <div class="table-tools">
+          <div>
+            <p class="section-kicker">Base de datos</p>
+            <h2 id="tableTitle">Registros</h2>
+            <p id="tableCount">0 resultados</p>
+          </div>
+          <div class="filters">
+            <input id="searchInput" type="search" placeholder="Buscar lugar, circuito o estructura">
+            <select id="typeFilter" aria-label="Filtrar por tipo de poda">
+              <option value="">Todos los tipos</option>
+              <option value="A">Tipo A</option>
+              <option value="B">Tipo B</option>
+              <option value="C">Tipo C</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr id="tableHeadRow">
+                <th>Latitud</th>
+                <th>Longitud</th>
+                <th>Lugar</th>
+                <th>Circuito</th>
+                <th>Tipo</th>
+                <th>Arboles</th>
+                <th>Estructuras</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+      </section>
+      </main>
+    </div>
+
+    <script src="vendor/leaflet.js"></script>
+    <script src="vendor/xlsx.full.min.js"></script>
+    <script src="vendor/jszip.min.js"></script>
+    <script src="vendor/chart.umd.min.js"></script>
+    <script src="vendor/jspdf.umd.min.js"></script>
+    <script src="brecha-data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

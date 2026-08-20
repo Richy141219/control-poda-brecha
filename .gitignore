@@ -1,0 +1,16 @@
+﻿# Control de Poda y Brecha
+
+Aplicacion web estatica para captura, mapa, base de datos, graficas y reportes PDF de poda y brecha.
+
+La app usa Supabase como base de datos central y esta preparada para publicarse en Netlify.
+
+## Netlify
+
+- Build command: dejar vacio
+- Publish directory: .
+"@ | Set-Content -Path (Join-Path C:\Users\ricar\OneDrive\Documentos\Aplicación seguro\github_netlify "README.md") -Encoding UTF8
+
+@"
+.DS_Store
+Thumbs.db
+*.log
