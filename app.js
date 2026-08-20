@@ -1420,7 +1420,9 @@ function handleRowAction(event) {
   if (!record) return;
 
   if (action === "edit") {
+    setView("work");
     fillForm(record);
+    scrollToFormPanel();
     return;
   }
 
@@ -1436,7 +1438,9 @@ function handleBrechaRowAction(event) {
   if (!segment) return;
 
   if (action === "edit") {
+    setView("work");
     fillBrechaForm(segment);
+    scrollToFormPanel();
     return;
   }
 
@@ -1483,6 +1487,12 @@ function fillBrechaForm(segment) {
       [segment.latFin, segment.longFin]
     ], { padding: [40, 40], maxZoom: 17 });
   }
+}
+
+function scrollToFormPanel() {
+  window.setTimeout(() => {
+    elements.formPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 80);
 }
 
 function exportCsv() {
