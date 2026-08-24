@@ -90,6 +90,11 @@
           </label>
 
           <label class="poda-field">
+            Generador
+            <select id="generador" name="generador" data-generator-select required></select>
+          </label>
+
+          <label class="poda-field">
             Tipo de poda
             <select id="tipoPoda" name="tipoPoda" required>
               <option value="A">A</option>
@@ -213,6 +218,36 @@
       </div>
 
       <section id="databaseView" class="table-panel view-hidden" aria-labelledby="tableTitle">
+        <section class="database-overview" aria-label="Resumen de base de datos">
+          <div class="database-card featured">
+            <span>Base de poda</span>
+            <strong id="dbPodaCount">0</strong>
+            <p id="dbPodaDetail">0 arboles registrados</p>
+          </div>
+          <div class="database-card">
+            <span>Base de brecha</span>
+            <strong id="dbBrechaCount">0</strong>
+            <p id="dbBrechaDetail">0 hectareas registradas</p>
+          </div>
+          <div class="database-card">
+            <span>Trayectorias</span>
+            <strong id="dbRoutesCount">0</strong>
+            <p id="dbRoutesDetail">KMZ y rutas cargadas</p>
+          </div>
+          <div class="database-card">
+            <span>Estado</span>
+            <strong id="dbSyncLabel">Local</strong>
+            <p id="dbSyncDetail">Sin cambios nuevos</p>
+          </div>
+          <div class="database-breakdown">
+            <div>
+              <p class="section-kicker">Organizacion</p>
+              <h3 id="dbBreakdownTitle">Resumen del conjunto activo</h3>
+            </div>
+            <div id="dbBreakdownList" class="database-chips"></div>
+          </div>
+        </section>
+
         <div class="table-tools">
           <div>
             <p class="section-kicker">Base de datos</p>
@@ -227,6 +262,9 @@
               <option value="B">Tipo B</option>
               <option value="C">Tipo C</option>
             </select>
+            <select id="generatorFilter" aria-label="Filtrar por generador" data-generator-select>
+              <option value="">Todos los generadores</option>
+            </select>
           </div>
         </div>
 
@@ -238,6 +276,7 @@
                 <th>Longitud</th>
                 <th>Lugar</th>
                 <th>Circuito</th>
+                <th>Generador</th>
                 <th>Tipo</th>
                 <th>Arboles</th>
                 <th>Estructuras</th>

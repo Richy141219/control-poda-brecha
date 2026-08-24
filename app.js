@@ -10,6 +10,7 @@ const SUPABASE_URL = "https://laxrkoajrvbmesshbake.supabase.co";
 const SUPABASE_PUBLIC_KEY = "sb_publishable_AAUS4Qrl520qcoLyAZwiuQ_GMGN5riU";
 const SUPABASE_TABLE = "app_database";
 const LOCAL_DATABASE_API = "/api/database";
+const GENERATORS = Array.from({ length: 68 }, (_, index) => `PZO-${index + 1}`);
 
 const seedRecords = [
   { latitud: 18.924187, longitud: -97.012468, lugar: "FORTIN", circuito: "FOR-04010", tipoPoda: "B", arboles: 60, estructuras: "76 - 77" },
@@ -73,6 +74,7 @@ const elements = {
   longitud: document.querySelector("#longitud"),
   lugar: document.querySelector("#lugar"),
   circuito: document.querySelector("#circuito"),
+  generador: document.querySelector("#generador"),
   tipoPoda: document.querySelector("#tipoPoda"),
   arboles: document.querySelector("#arboles"),
   estructuras: document.querySelector("#estructuras"),
@@ -90,10 +92,21 @@ const elements = {
   cancelEdit: document.querySelector("#cancelEdit"),
   searchInput: document.querySelector("#searchInput"),
   typeFilter: document.querySelector("#typeFilter"),
+  generatorFilter: document.querySelector("#generatorFilter"),
   recordsBody: document.querySelector("#recordsBody"),
   tableHeadRow: document.querySelector("#tableHeadRow"),
   tableTitle: document.querySelector("#tableTitle"),
   tableCount: document.querySelector("#tableCount"),
+  dbPodaCount: document.querySelector("#dbPodaCount"),
+  dbPodaDetail: document.querySelector("#dbPodaDetail"),
+  dbBrechaCount: document.querySelector("#dbBrechaCount"),
+  dbBrechaDetail: document.querySelector("#dbBrechaDetail"),
+  dbRoutesCount: document.querySelector("#dbRoutesCount"),
+  dbRoutesDetail: document.querySelector("#dbRoutesDetail"),
+  dbSyncLabel: document.querySelector("#dbSyncLabel"),
+  dbSyncDetail: document.querySelector("#dbSyncDetail"),
+  dbBreakdownTitle: document.querySelector("#dbBreakdownTitle"),
+  dbBreakdownList: document.querySelector("#dbBreakdownList"),
   chartPanel: document.querySelector("#chartPanel"),
   chartTitle: document.querySelector("#chartTitle"),
   chartSubtitle: document.querySelector("#chartSubtitle"),
@@ -126,6 +139,7 @@ elements.viewDatabase.addEventListener("click", () => setView("database"));
 elements.cancelEdit.addEventListener("click", clearForm);
 elements.searchInput.addEventListener("input", render);
 elements.typeFilter.addEventListener("change", render);
+elements.generatorFilter.addEventListener("change", render);
 elements.importExcel.addEventListener("click", () => elements.excelInput.click());
 elements.excelInput.addEventListener("change", importExcel);
 elements.saveChanges.addEventListener("click", saveChanges);
@@ -151,6 +165,7 @@ let mapReady = false;
 let activeChart = null;
 
 initMap();
+populateGeneratorSelects();
 registerServiceWorker();
 storeDatabaseTokenFromUrl();
 render();
@@ -217,6 +232,7 @@ function markPendingChanges() {
   elements.saveStatus.textContent = "Cambios sin guardar";
   elements.saveStatus.classList.remove("saved");
   elements.saveStatus.classList.add("pending");
+  renderDatabaseOverview(getActiveDatabaseList());
 }
 
 async function saveChanges() {
@@ -244,6 +260,7 @@ async function saveChanges() {
   elements.saveStatus.classList.remove("pending");
   elements.saveStatus.classList.toggle("saved", databaseConnected);
   elements.saveStatus.classList.toggle("pending", !databaseConnected);
+  renderDatabaseOverview(getActiveDatabaseList());
 }
 
 async function loadCloudDatabase() {
@@ -382,12 +399,14 @@ function updateConnectionStatus() {
     elements.saveStatus.classList.remove("saved");
     elements.saveStatus.classList.add("pending");
   }
+  renderDatabaseOverview(getActiveDatabaseList());
 }
 
 function setSavedStatus(text) {
   elements.saveStatus.textContent = text;
   elements.saveStatus.classList.remove("pending");
   elements.saveStatus.classList.add("saved");
+  renderDatabaseOverview(getActiveDatabaseList());
 }
 
 function registerServiceWorker() {
@@ -396,6 +415,38 @@ function registerServiceWorker() {
   navigator.serviceWorker.register("/sw.js").catch(() => {
     // La app sigue funcionando sin instalacion offline si el navegador no permite service workers.
   });
+}
+
+function populateGeneratorSelects() {
+  document.querySelectorAll("[data-generator-select]").forEach((select) => {
+    const selected = select.value;
+    const isFilter = select.id === "generatorFilter";
+    select.innerHTML = "";
+    select.appendChild(new Option(isFilter ? "Todos los generadores" : "Selecciona generador", ""));
+    GENERATORS.forEach((generator) => {
+      select.appendChild(new Option(generator, generator));
+    });
+    select.value = GENERATORS.includes(selected) ? selected : "";
+  });
+}
+
+function normalizeGenerator(value) {
+  const text = String(value || "").trim().toUpperCase();
+  const match = text.match(/^PZO[\s-]*(\d{1,2})$/);
+  if (!match) return "";
+
+  const number = Number(match[1]);
+  return number >= 1 && number <= 68 ? `PZO-${number}` : "";
+}
+
+function getRecordGenerator(record) {
+  return normalizeGenerator(record.generador) || "SIN GENERADOR";
+}
+
+function getGeneratorSortValue(label) {
+  const normalized = normalizeGenerator(label);
+  if (!normalized) return 999;
+  return Number(normalized.split("-")[1]);
 }
 
 function storeDatabaseTokenFromUrl() {
@@ -462,12 +513,13 @@ function saveRecord(event) {
     longitud: Number(elements.longitud.value),
     lugar: elements.lugar.value.trim().toUpperCase(),
     circuito: elements.circuito.value.trim().toUpperCase(),
+    generador: normalizeGenerator(elements.generador.value),
     tipoPoda: elements.tipoPoda.value,
     arboles: Number(elements.arboles.value),
     estructuras: elements.estructuras.value.trim()
   };
 
-  const error = validateRecord(record);
+  const error = validateRecord(record, { requireGenerator: true });
   if (error) {
     elements.formError.textContent = error;
     return;
@@ -527,7 +579,7 @@ function saveBrechaSegment() {
   render();
 }
 
-function validateRecord(record) {
+function validateRecord(record, options = {}) {
   if (!Number.isFinite(record.latitud) || record.latitud < -90 || record.latitud > 90) {
     return "La latitud debe estar entre -90 y 90.";
   }
@@ -542,6 +594,10 @@ function validateRecord(record) {
 
   if (!record.lugar || !record.circuito || !record.estructuras) {
     return "Completa lugar, circuito y estructuras.";
+  }
+
+  if (options.requireGenerator && !record.generador) {
+    return "Selecciona un generador de PZO-1 a PZO-68.";
   }
 
   return "";
@@ -585,6 +641,7 @@ function clearForm() {
   elements.formError.textContent = "";
   elements.editMode.classList.add("hidden");
   elements.cancelEdit.classList.add("hidden");
+  elements.generador.value = "";
   elements.tipoPoda.value = "A";
   removePreviewMarker();
 }
@@ -595,15 +652,18 @@ function render() {
   elements.modeBrecha.classList.toggle("active", currentMode === "brecha");
   renderViewState();
   elements.typeFilter.disabled = currentMode === "brecha";
+  elements.generatorFilter.disabled = currentMode === "brecha";
+  elements.generatorFilter.classList.toggle("hidden", currentMode === "brecha");
   elements.formTitle.textContent = currentMode === "brecha" ? "Nuevo segmento de brecha" : "Nuevo registro";
   elements.searchInput.placeholder = currentMode === "brecha"
     ? "Buscar segmento, hoja, metros o hectareas"
-    : "Buscar lugar, circuito o estructura";
+    : "Buscar lugar, circuito, generador o estructura";
   toggleFormModeFields();
 
   if (currentMode === "brecha") {
     const filtered = getFilteredBrechaSegments();
     renderBrechaMetrics(filtered);
+    renderDatabaseOverview(filtered);
     renderBrechaTable(filtered);
     renderBrechaMap(filtered);
     updateChartIfOpen();
@@ -612,6 +672,7 @@ function render() {
 
   const filtered = getFilteredRecords();
   renderMetrics(filtered);
+  renderDatabaseOverview(filtered);
   renderTable(filtered);
   renderMap(filtered);
   updateChartIfOpen();
@@ -647,11 +708,13 @@ function toggleFormModeFields() {
 function getFilteredRecords() {
   const query = elements.searchInput.value.trim().toLowerCase();
   const type = elements.typeFilter.value;
+  const generator = elements.generatorFilter.value;
 
   return records.filter((record) => {
     const matchesType = !type || record.tipoPoda === type;
-    const haystack = `${record.lugar} ${record.circuito} ${record.estructuras}`.toLowerCase();
-    return matchesType && (!query || haystack.includes(query));
+    const matchesGenerator = !generator || normalizeGenerator(record.generador) === generator;
+    const haystack = `${record.lugar} ${record.circuito} ${getRecordGenerator(record)} ${record.estructuras}`.toLowerCase();
+    return matchesType && matchesGenerator && (!query || haystack.includes(query));
   });
 }
 
@@ -691,6 +754,86 @@ function renderBrechaMetrics(list) {
   elements.totalArboles.textContent = totalM.toLocaleString("es-MX");
   elements.totalTipoA.textContent = efectivaM.toLocaleString("es-MX");
   elements.totalTipoB.textContent = hectareas.toLocaleString("es-MX", { maximumFractionDigits: 3 });
+}
+
+function renderDatabaseOverview(activeList = getActiveDatabaseList()) {
+  const totalTrees = records.reduce((sum, record) => sum + Number(record.arboles || 0), 0);
+  const totalHectareas = brechaSegments.reduce((sum, segment) => sum + Number(segment.hectareas || 0), 0);
+  const totalRoutes = routes.length + brechaRoutes.length;
+  const pending = localStorage.getItem(PENDING_SYNC_KEY) === "1";
+
+  elements.dbPodaCount.textContent = records.length.toLocaleString("es-MX");
+  elements.dbPodaDetail.textContent = `${totalTrees.toLocaleString("es-MX")} arboles registrados`;
+  elements.dbBrechaCount.textContent = brechaSegments.length.toLocaleString("es-MX");
+  elements.dbBrechaDetail.textContent = `${totalHectareas.toLocaleString("es-MX", { maximumFractionDigits: 3 })} hectareas registradas`;
+  elements.dbRoutesCount.textContent = totalRoutes.toLocaleString("es-MX");
+  elements.dbRoutesDetail.textContent = `${routes.length.toLocaleString("es-MX")} poda / ${brechaRoutes.length.toLocaleString("es-MX")} brecha`;
+  elements.dbSyncLabel.textContent = pending ? "Pendiente" : databaseConnected ? "Supabase" : "Local";
+  elements.dbSyncDetail.textContent = elements.saveStatus.textContent || "Sin cambios nuevos";
+
+  if (currentMode === "brecha") {
+    renderBrechaDatabaseBreakdown(activeList);
+    return;
+  }
+
+  renderPodaDatabaseBreakdown(activeList);
+}
+
+function renderPodaDatabaseBreakdown(list) {
+  elements.dbBreakdownTitle.textContent = "Generadores de poda";
+  const totals = new Map();
+
+  list.forEach((record) => {
+    const key = getRecordGenerator(record);
+    const current = totals.get(key) || {
+      label: key,
+      records: 0,
+      trees: 0,
+      circuits: new Set()
+    };
+    current.records += 1;
+    current.trees += Number(record.arboles || 0);
+    if (record.circuito) current.circuits.add(record.circuito);
+    totals.set(key, current);
+  });
+
+  const rows = Array.from(totals.values())
+    .sort((a, b) => getGeneratorSortValue(a.label) - getGeneratorSortValue(b.label))
+    .slice(0, 12)
+    .map((row) => ({
+      label: row.label,
+      detail: `${row.records.toLocaleString("es-MX")} reg. / ${row.trees.toLocaleString("es-MX")} arboles / ${row.circuits.size.toLocaleString("es-MX")} circuitos`
+    }));
+
+  renderDatabaseChips(rows, "Sin registros de poda para los filtros actuales.");
+}
+
+function renderBrechaDatabaseBreakdown(list) {
+  elements.dbBreakdownTitle.textContent = "Grupos de brecha";
+  const rows = aggregateBrechaBySheet(list).slice(0, 12).map((row) => ({
+    label: row.label,
+    detail: `${Number(row.value || 0).toLocaleString("es-MX")} m / ${Number(row.hectareas || 0).toLocaleString("es-MX", { maximumFractionDigits: 3 })} ha`
+  }));
+
+  renderDatabaseChips(rows, "Sin segmentos de brecha para los filtros actuales.");
+}
+
+function renderDatabaseChips(rows, emptyText) {
+  if (!rows.length) {
+    elements.dbBreakdownList.innerHTML = `<span class="database-chip muted">${emptyText}</span>`;
+    return;
+  }
+
+  elements.dbBreakdownList.innerHTML = rows.map((row) => `
+    <span class="database-chip">
+      <strong>${escapeHtml(row.label)}</strong>
+      <small>${escapeHtml(row.detail)}</small>
+    </span>
+  `).join("");
+}
+
+function getActiveDatabaseList() {
+  return currentMode === "brecha" ? getFilteredBrechaSegments() : getFilteredRecords();
 }
 
 function openChartPanel() {
@@ -1145,6 +1288,7 @@ function renderTable(list) {
     <th>Longitud</th>
     <th>Lugar</th>
     <th>Circuito</th>
+    <th>Generador</th>
     <th>Tipo</th>
     <th>Arboles</th>
     <th>Estructuras</th>
@@ -1163,6 +1307,7 @@ function renderTable(list) {
       <td class="${outlier ? "outlier" : ""}">${formatCoordinate(record.longitud)}</td>
       <td>${escapeHtml(record.lugar)}</td>
       <td>${escapeHtml(record.circuito)}</td>
+      <td>${escapeHtml(getRecordGenerator(record))}</td>
       <td>${escapeHtml(record.tipoPoda)}</td>
       <td>${Number(record.arboles).toLocaleString("es-MX")}</td>
       <td>${escapeHtml(record.estructuras)}</td>
@@ -1459,6 +1604,7 @@ function fillForm(record) {
   elements.longitud.value = record.longitud;
   elements.lugar.value = record.lugar;
   elements.circuito.value = record.circuito;
+  elements.generador.value = normalizeGenerator(record.generador);
   elements.tipoPoda.value = record.tipoPoda;
   elements.arboles.value = record.arboles;
   elements.estructuras.value = record.estructuras;
@@ -1505,7 +1651,7 @@ function exportCsv() {
     return;
   }
 
-  const headers = ["LATITUD", "LONGITUD", "NOMBRE DEL LUGAR", "CIRCUITO", "TIPO DE PODA", "No. De Arboles", "ENTRE ESTRUCTURAS"];
+  const headers = ["LATITUD", "LONGITUD", "NOMBRE DEL LUGAR", "CIRCUITO", "GENERADOR", "TIPO DE PODA", "No. De Arboles", "ENTRE ESTRUCTURAS"];
   const lines = [headers.join(",")];
 
   records.forEach((record) => {
@@ -1514,6 +1660,7 @@ function exportCsv() {
       record.longitud,
       record.lugar,
       record.circuito,
+      getRecordGenerator(record),
       record.tipoPoda,
       record.arboles,
       record.estructuras
@@ -1848,6 +1995,7 @@ function parseSheetRows(rows, sheetName) {
     longitud: findColumn(headers, ["longitud", "lng", "lon"]),
     lugar: findColumn(headers, ["nombre del lugar", "lugar", "ubicacion"]),
     circuito: findColumn(headers, ["circuito"]),
+    generador: findColumn(headers, ["generador", "generator", "pzo"]),
     tipoPoda: findColumn(headers, ["tipo de poda", "tipo poda", "poda"]),
     arboles: findColumn(headers, ["no de arboles", "numero de arboles", "arboles", "no. de arboles"]),
     estructuras: findColumn(headers, ["entre estructuras", "estructuras"])
@@ -1864,6 +2012,7 @@ function parseSheetRows(rows, sheetName) {
       longitud: toNumber(row[indexes.longitud]),
       lugar: readCell(row, indexes.lugar, "SIN LUGAR").toUpperCase(),
       circuito: readCell(row, indexes.circuito, "SIN CIRCUITO").toUpperCase(),
+      generador: normalizeGenerator(readCell(row, indexes.generador, "")),
       tipoPoda: readCell(row, indexes.tipoPoda, "A").toUpperCase(),
       arboles: Math.round(toNumber(row[indexes.arboles])),
       estructuras: readCell(row, indexes.estructuras, `Fila ${headerIndex + rowOffset + 2}`)
@@ -1966,6 +2115,7 @@ function createPopup(record) {
   return `
     <strong>${escapeHtml(record.lugar)}</strong>
     <span>Circuito: ${escapeHtml(record.circuito)}</span>
+    <span>Generador: ${escapeHtml(getRecordGenerator(record))}</span>
     <span>Tipo de poda: ${escapeHtml(record.tipoPoda)}</span>
     <span>Arboles: ${Number(record.arboles).toLocaleString("es-MX")}</span>
     <span>Estructuras: ${escapeHtml(record.estructuras)}</span>
