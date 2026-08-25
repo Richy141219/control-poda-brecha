@@ -1265,6 +1265,120 @@ function aggregateBrechaBySheet(list) {
     .slice(0, 12);
 }
 
+function aggregatePodaByGenerator(list) {
+  const totals = new Map();
+  list.forEach((record) => {
+    const key = normalizeGenerator(record.generador) || "SIN GENERADOR";
+    const current = totals.get(key) || { label: key, value: 0, records: 0 };
+    current.value += Number(record.arboles || 0);
+    current.records += 1;
+    totals.set(key, current);
+  });
+
+  return Array.from(totals.values())
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 12);
+}
+
+function aggregatePodaByType(list) {
+  const totals = new Map();
+  list.forEach((record) => {
+    const key = record.tipoPoda || "SIN TIPO";
+    totals.set(key, (totals.get(key) || 0) + Number(record.arboles || 0));
+  });
+
+  return Array.from(totals, ([label, value]) => ({ label: `Tipo ${label}`, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function buildFullReportData() {
+  const podaRows = aggregatePodaByGenerator(records);
+  const podaPlaces = aggregatePodaByPlace(records);
+  const podaTypes = aggregatePodaByType(records);
+  const brechaRows = aggregateBrechaBySheet(brechaSegments);
+  const sicopoRows = getSicopoGeneratorRows();
+  const pendingGenerators = sicopoRows.filter((row) => row.statusType === "pending");
+  const partialGenerators = sicopoRows.filter((row) => row.statusType === "partial");
+  const doneGenerators = sicopoRows.filter((row) => row.statusType === "done");
+  const totalTrees = records.reduce((sum, record) => sum + Number(record.arboles || 0), 0);
+  const totalBrechaM = brechaSegments.reduce((sum, segment) => sum + Number(segment.totalM || 0), 0);
+  const totalEffectiveM = brechaSegments.reduce((sum, segment) => sum + Number(segment.efectivaM || 0), 0);
+  const totalHectareas = brechaSegments.reduce((sum, segment) => sum + Number(segment.hectareas || 0), 0);
+  const validPodaCoords = records.filter((record) => Number.isFinite(Number(record.latitud)) && Number.isFinite(Number(record.longitud))).length;
+  const outlierPodaCoords = records.filter((record) => isOutlier(record)).length;
+  const validBrechaCoords = brechaSegments.filter((segment) => segment.points?.some((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))).length;
+  const statusChartRows = [
+    { label: "Completos", value: doneGenerators.length, color: "#176b4d" },
+    { label: "En proceso", value: partialGenerators.length, color: "#d99b22" },
+    { label: "Pendientes", value: pendingGenerators.length, color: "#c83f3f" }
+  ];
+  const sicopoDetailRows = sicopoPendings
+    .slice()
+    .sort((a, b) => {
+      const generatorDiff = getGeneratorSortValue(a.generador) - getGeneratorSortValue(b.generador);
+      if (generatorDiff !== 0) return generatorDiff;
+      return getStructureSortValue(a.estructuras) - getStructureSortValue(b.estructuras);
+    })
+    .slice(0, 12)
+    .map((item) => ({
+      generator: normalizeGenerator(item.generador) || "SIN PZO",
+      circuit: item.circuito || "SICOPO",
+      structures: item.estructuras || "Sin estructuras",
+      trees: Number(item.arboles || 0).toLocaleString("es-MX")
+    }));
+  const topPodaGenerator = podaRows[0];
+  const topPodaPlace = podaPlaces[0];
+  const topBrechaGroup = brechaRows[0];
+
+  return {
+    hasData: records.length > 0 || brechaSegments.length > 0 || sicopoPendings.length > 0,
+    fileName: `informe_general_poda_brecha_${getDateFileName()}.pdf`,
+    summaryMetrics: [
+      ["Registros poda", records.length.toLocaleString("es-MX")],
+      ["Arboles podados", totalTrees.toLocaleString("es-MX")],
+      ["Segmentos brecha", brechaSegments.length.toLocaleString("es-MX")],
+      ["Hectareas", totalHectareas.toLocaleString("es-MX", { maximumFractionDigits: 3 })],
+      ["Trayectorias poda", routes.length.toLocaleString("es-MX")],
+      ["Trayectorias brecha", brechaRoutes.length.toLocaleString("es-MX")],
+      ["PZO completos", doneGenerators.length.toLocaleString("es-MX")],
+      ["PZO pendientes", pendingGenerators.length.toLocaleString("es-MX")]
+    ],
+    summary: `Este informe consolida la informacion actual de poda, brecha, trayectorias y pendientes SICOPO. Se integran ${records.length.toLocaleString("es-MX")} registros de poda, ${brechaSegments.length.toLocaleString("es-MX")} segmentos de brecha y ${sicopoPendings.length.toLocaleString("es-MX")} renglones SICOPO pendientes de coordenadas.`,
+    sicopo: {
+      rows: sicopoRows,
+      statusChartRows,
+      pendingGenerators,
+      partialGenerators,
+      doneGenerators,
+      detailRows: sicopoDetailRows,
+      text: `De ${GENERATORS.length} generadores PZO, ${doneGenerators.length.toLocaleString("es-MX")} aparecen completos, ${partialGenerators.length.toLocaleString("es-MX")} estan en proceso y ${pendingGenerators.length.toLocaleString("es-MX")} siguen pendientes. Un generador en proceso conserva alerta amarilla hasta que todos sus renglones SICOPO tengan coordenadas.`
+    },
+    poda: {
+      rows: podaRows,
+      places: podaPlaces,
+      types: podaTypes,
+      text: topPodaGenerator
+        ? `En poda, el generador con mayor carga registrada es ${topPodaGenerator.label}, con ${topPodaGenerator.value.toLocaleString("es-MX")} arboles. ${topPodaPlace ? `El lugar con mayor volumen es ${topPodaPlace.label}, con ${topPodaPlace.value.toLocaleString("es-MX")} arboles. ` : ""}La lectura por generador y lugar permite revisar avance operativo y detectar donde conviene validar circuitos, estructuras y coordenadas.`
+        : "No hay registros de poda con datos suficientes para analizar generadores.",
+      typeText: podaTypes.length
+        ? `Distribucion por tipo de poda: ${podaTypes.map((row) => `${row.label}: ${row.value.toLocaleString("es-MX")}`).join(", ")}.`
+        : "No hay datos por tipo de poda para resumir."
+    },
+    brecha: {
+      rows: brechaRows,
+      text: topBrechaGroup
+        ? `En brecha, el grupo con mayor longitud registrada es ${topBrechaGroup.label}, con ${topBrechaGroup.value.toLocaleString("es-MX")} m. El total efectivo es ${totalEffectiveM.toLocaleString("es-MX")} m y equivale a ${totalHectareas.toLocaleString("es-MX", { maximumFractionDigits: 3 })} hectareas calculadas.`
+        : "No hay segmentos de brecha suficientes para analizar.",
+      totalBrechaM,
+      totalEffectiveM,
+      totalHectareas
+    },
+    map: {
+      text: `La evidencia geografica considera ${validPodaCoords.toLocaleString("es-MX")} puntos de poda con coordenadas validas y ${validBrechaCoords.toLocaleString("es-MX")} segmentos de brecha con puntos trazables. Se excluyen visualmente ${outlierPodaCoords.toLocaleString("es-MX")} puntos fuera de la zona operativa para mantener el mapa centrado.`
+    }
+  };
+}
+
 function generatePdfReport() {
   if (!globalThis.jspdf?.jsPDF) {
     elements.formError.textContent = "No se pudo cargar la libreria de PDF. Revisa la conexion a internet.";
@@ -1272,11 +1386,9 @@ function generatePdfReport() {
   }
 
   const doc = new jspdf.jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-  const report = currentMode === "brecha"
-    ? buildBrechaReportData(getFilteredBrechaSegments())
-    : buildPodaReportData(getFilteredRecords());
+  const report = buildFullReportData();
 
-  if (!report.items.length) {
+  if (!report.hasData) {
     elements.formError.textContent = "No hay datos suficientes para generar el informe.";
     return;
   }
@@ -1294,37 +1406,88 @@ function generatePdfReport() {
 
   const margin = 16;
   const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
   let y = 18;
 
-  drawPdfHeader(doc, report.title, `Fecha de informe: ${dateText} ${timeText}`, margin, pageWidth);
+  drawPdfHeader(doc, "Informe general de poda, brecha y SICOPO", `Fecha de informe: ${dateText} ${timeText}`, margin, pageWidth);
   y = 36;
 
-  y = drawPdfSectionTitle(doc, "Resumen ejecutivo", margin, y);
+  y = drawPdfSectionTitle(doc, "Resumen general", margin, y);
   y = drawPdfParagraph(doc, report.summary, margin, y, pageWidth - margin * 2);
-
   y += 4;
-  y = drawMetricGrid(doc, report.metrics, margin, y, pageWidth - margin * 2);
+  y = drawMetricGrid(doc, report.summaryMetrics, margin, y, pageWidth - margin * 2);
 
-  y += 8;
-  y = drawPdfSectionTitle(doc, "Grafica analizada", margin, y);
-  const chartImage = createReportChartImage(report.items, report.chartLabel, report.unit);
-  doc.addImage(chartImage, "PNG", margin, y, pageWidth - margin * 2, 78);
-  y += 86;
+  y = ensurePdfSpace(doc, y + 8, 100, margin);
+  y = drawPdfSectionTitle(doc, "Estado de generadores PZO", margin, y);
+  const statusImage = createStatusChartImage(report.sicopo.statusChartRows);
+  doc.addImage(statusImage, "PNG", margin, y, pageWidth - margin * 2, 62);
+  y += 70;
+  y = drawPdfParagraph(doc, report.sicopo.text, margin, y, pageWidth - margin * 2);
 
-  y = drawPdfSectionTitle(doc, "Analisis", margin, y);
-  y = drawPdfParagraph(doc, report.analysis, margin, y, pageWidth - margin * 2);
-
-  y += 4;
-  if (y > pageHeight - 70) {
-    doc.addPage();
-    y = 18;
+  y = ensurePdfSpace(doc, y + 4, 82, margin);
+  y = drawPdfSectionTitle(doc, "Pendientes SICOPO", margin, y);
+  if (report.sicopo.detailRows.length) {
+    y = drawPdfTable(doc, [
+      { header: "PZO", field: "generator", ratio: 0.16 },
+      { header: "Circuito", field: "circuit", ratio: 0.29 },
+      { header: "Estructuras", field: "structures", ratio: 0.39 },
+      { header: "Arboles", field: "trees", ratio: 0.16, align: "right" }
+    ], report.sicopo.detailRows, margin, y, pageWidth - margin * 2);
+    if (sicopoPendings.length > report.sicopo.detailRows.length) {
+      y = drawPdfParagraph(doc, `Se muestran los primeros ${report.sicopo.detailRows.length} renglones pendientes de ${sicopoPendings.length.toLocaleString("es-MX")} totales.`, margin, y + 2, pageWidth - margin * 2);
+    }
+  } else {
+    y = drawPdfParagraph(doc, "No hay renglones SICOPO pendientes de coordenadas.", margin, y, pageWidth - margin * 2);
   }
-  y = drawPdfSectionTitle(doc, "Principales registros", margin, y);
-  drawReportTable(doc, report.items.slice(0, 8), report.tableValueHeader, margin, y, pageWidth - margin * 2);
+
+  y = ensurePdfSpace(doc, y + 6, 122, margin);
+  y = drawPdfSectionTitle(doc, "Analisis de poda", margin, y);
+  y = drawPdfParagraph(doc, `${report.poda.text} ${report.poda.typeText}`, margin, y, pageWidth - margin * 2);
+  if (report.poda.rows.length) {
+    const podaImage = createReportChartImage(report.poda.rows, "Arboles podados por generador", "arboles");
+    doc.addImage(podaImage, "PNG", margin, y, pageWidth - margin * 2, 68);
+    y += 76;
+    y = drawReportTable(doc, report.poda.rows.slice(0, 8), "Arboles", margin, y, pageWidth - margin * 2);
+  }
+  if (report.poda.places.length) {
+    y = ensurePdfSpace(doc, y + 6, 78, margin);
+    y = drawPdfSectionTitle(doc, "Lugares con mayor poda", margin, y);
+    y = drawReportTable(doc, report.poda.places.slice(0, 8), "Arboles", margin, y, pageWidth - margin * 2);
+  }
+
+  y = ensurePdfSpace(doc, y + 6, 116, margin);
+  y = drawPdfSectionTitle(doc, "Analisis de brecha", margin, y);
+  y = drawPdfParagraph(doc, report.brecha.text, margin, y, pageWidth - margin * 2);
+  if (report.brecha.rows.length) {
+    const brechaImage = createReportChartImage(report.brecha.rows, "Metros de brecha por grupo", "m");
+    doc.addImage(brechaImage, "PNG", margin, y, pageWidth - margin * 2, 68);
+    y += 76;
+    y = drawReportTable(doc, report.brecha.rows.slice(0, 8), "Metros", margin, y, pageWidth - margin * 2);
+  }
+
+  y = ensurePdfSpace(doc, y + 6, 70, margin);
+  y = drawPdfSectionTitle(doc, "Mapa y evidencia geografica", margin, y);
+  y = drawPdfParagraph(doc, report.map.text, margin, y, pageWidth - margin * 2);
+
+  y = ensurePdfSpace(doc, y + 4, 40, margin);
+  y = drawPdfSectionTitle(doc, "Conclusion automatica", margin, y);
+  drawPdfParagraph(doc, buildReportConclusion(report), margin, y, pageWidth - margin * 2);
 
   addPageNumbers(doc);
   doc.save(report.fileName);
+}
+
+function buildReportConclusion(report) {
+  const mainRisk = report.sicopo.pendingGenerators.length
+    ? `El principal punto de seguimiento son los ${report.sicopo.pendingGenerators.length.toLocaleString("es-MX")} generadores pendientes, porque limitan la validacion en mapa y el cierre de avance por circuito.`
+    : "Los generadores PZO no muestran pendientes SICOPO activos, por lo que el seguimiento puede centrarse en validar volumen, rutas y evidencia.";
+  const brechaNote = report.brecha.rows.length
+    ? ` Para brecha, conviene revisar los grupos con mayor metraje y confirmar que las hectareas calculadas correspondan con el ancho y la longitud efectiva registrada.`
+    : "";
+  const podaNote = report.poda.rows.length
+    ? " Para poda, la comparacion por generador ayuda a detectar concentraciones de trabajo y priorizar revisiones de captura."
+    : "";
+
+  return `${mainRisk}${podaNote}${brechaNote}`;
 }
 
 function buildPodaReportData(list) {
@@ -1416,21 +1579,26 @@ function drawPdfParagraph(doc, text, x, y, width) {
 
 function drawMetricGrid(doc, metrics, x, y, width) {
   const gap = 4;
-  const cardWidth = (width - gap * 3) / 4;
+  const columns = Math.min(4, Math.max(metrics.length, 1));
+  const cardWidth = (width - gap * (columns - 1)) / columns;
+  const cardHeight = 22;
   metrics.forEach(([label, value], index) => {
-    const cardX = x + index * (cardWidth + gap);
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const cardX = x + column * (cardWidth + gap);
+    const cardY = y + row * (cardHeight + gap);
     doc.setDrawColor(215, 224, 218);
     doc.setFillColor(247, 249, 248);
-    doc.roundedRect(cardX, y, cardWidth, 22, 2, 2, "FD");
+    doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 2, 2, "FD");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7);
     doc.setTextColor(100, 115, 107);
-    doc.text(label.toUpperCase(), cardX + 3, y + 7);
+    doc.text(label.toUpperCase(), cardX + 3, cardY + 7);
     doc.setFontSize(13);
     doc.setTextColor(21, 32, 26);
-    doc.text(String(value), cardX + 3, y + 17);
+    doc.text(String(value), cardX + 3, cardY + 17);
   });
-  return y + 26;
+  return y + Math.ceil(metrics.length / columns) * (cardHeight + gap);
 }
 
 function createReportChartImage(rows, title, unit) {
@@ -1470,6 +1638,70 @@ function createReportChartImage(rows, title, unit) {
   return canvas.toDataURL("image/png", 1);
 }
 
+function createStatusChartImage(rows) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1200;
+  canvas.height = 420;
+  const ctx = canvas.getContext("2d");
+  const total = Math.max(rows.reduce((sum, row) => sum + Number(row.value || 0), 0), 1);
+  const maxValue = Math.max(...rows.map((row) => Number(row.value || 0)), 1);
+  let startAngle = -Math.PI / 2;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#15201a";
+  ctx.font = "700 30px Arial";
+  ctx.fillText("Avance de generadores PZO", 42, 50);
+  ctx.font = "18px Arial";
+  ctx.fillStyle = "#64736b";
+  ctx.fillText("Completos, en proceso y pendientes SICOPO", 42, 80);
+
+  rows.forEach((row) => {
+    const value = Number(row.value || 0);
+    const angle = (value / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(190, 235);
+    ctx.arc(190, 235, 105, startAngle, startAngle + angle);
+    ctx.closePath();
+    ctx.fillStyle = row.color;
+    ctx.fill();
+    startAngle += angle;
+  });
+  ctx.beginPath();
+  ctx.arc(190, 235, 58, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.fillStyle = "#15201a";
+  ctx.font = "700 26px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(String(total), 190, 230);
+  ctx.font = "16px Arial";
+  ctx.fillStyle = "#64736b";
+  ctx.fillText("PZO", 190, 254);
+  ctx.textAlign = "left";
+
+  rows.forEach((row, index) => {
+    const y = 145 + index * 76;
+    const value = Number(row.value || 0);
+    const percent = total ? (value / total) * 100 : 0;
+    const barWidth = (value / maxValue) * 560;
+    ctx.fillStyle = row.color;
+    ctx.fillRect(390, y + 24, barWidth, 20);
+    ctx.fillStyle = "#edf3ef";
+    ctx.fillRect(390 + barWidth, y + 24, 560 - barWidth, 20);
+    ctx.fillStyle = "#15201a";
+    ctx.font = "700 22px Arial";
+    ctx.fillText(row.label, 390, y);
+    ctx.font = "700 18px Arial";
+    ctx.fillText(`${value.toLocaleString("es-MX")} generadores`, 390, y + 62);
+    ctx.fillStyle = "#64736b";
+    ctx.font = "16px Arial";
+    ctx.fillText(`${percent.toFixed(1)}% del total`, 610, y + 62);
+  });
+
+  return canvas.toDataURL("image/png", 1);
+}
+
 function drawReportTable(doc, rows, valueHeader, x, y, width) {
   const valueX = x + width - 6;
   doc.setFillColor(238, 244, 240);
@@ -1488,6 +1720,48 @@ function drawReportTable(doc, rows, valueHeader, x, y, width) {
     doc.text(shortenLabel(row.label, 55), x + 3, rowY + 6);
     doc.text(Number(row.value || 0).toLocaleString("es-MX"), valueX, rowY + 6, { align: "right" });
   });
+  return y + 13 + rows.length * 8;
+}
+
+function drawPdfTable(doc, columns, rows, x, y, width) {
+  doc.setFillColor(238, 244, 240);
+  doc.rect(x, y, width, 9, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(21, 32, 26);
+
+  let cursorX = x;
+  columns.forEach((column) => {
+    const columnWidth = width * column.ratio;
+    const textX = column.align === "right" ? cursorX + columnWidth - 3 : cursorX + 3;
+    doc.text(column.header, textX, y + 6, { align: column.align || "left" });
+    cursorX += columnWidth;
+  });
+
+  rows.forEach((row, index) => {
+    const rowY = y + 9 + index * 8;
+    cursorX = x;
+    doc.setDrawColor(215, 224, 218);
+    doc.line(x, rowY + 8, x + width, rowY + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    columns.forEach((column) => {
+      const columnWidth = width * column.ratio;
+      const text = shortenLabel(String(row[column.field] || ""), column.align === "right" ? 12 : 24);
+      const textX = column.align === "right" ? cursorX + columnWidth - 3 : cursorX + 3;
+      doc.text(text, textX, rowY + 6, { align: column.align || "left" });
+      cursorX += columnWidth;
+    });
+  });
+
+  return y + 13 + rows.length * 8;
+}
+
+function ensurePdfSpace(doc, y, neededHeight, margin) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (y + neededHeight <= pageHeight - margin) return y;
+  doc.addPage();
+  return margin;
 }
 
 function addPageNumbers(doc) {
