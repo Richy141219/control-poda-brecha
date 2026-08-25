@@ -846,7 +846,7 @@ input[readonly] {
 
 .sicopo-overview {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -868,6 +868,11 @@ input[readonly] {
 .sicopo-card.done-state {
   border-color: rgba(23, 107, 77, 0.22);
   background: linear-gradient(135deg, var(--primary-soft), #ffffff);
+}
+
+.sicopo-card.warning-state {
+  border-color: rgba(138, 91, 0, 0.24);
+  background: linear-gradient(135deg, var(--warning-bg), #ffffff);
 }
 
 .sicopo-card span {
@@ -892,6 +897,10 @@ input[readonly] {
 
 .sicopo-card.done-state strong {
   color: var(--primary-dark);
+}
+
+.sicopo-card.warning-state strong {
+  color: var(--warning);
 }
 
 .sicopo-card p {
@@ -923,6 +932,12 @@ input[readonly] {
   border-color: rgba(179, 38, 30, 0.28);
   background:
     linear-gradient(180deg, rgba(247, 228, 225, 0.82), rgba(255, 255, 255, 0.95));
+}
+
+.sicopo-generator.partial {
+  border-color: rgba(138, 91, 0, 0.34);
+  background:
+    linear-gradient(180deg, rgba(255, 244, 215, 0.92), rgba(255, 255, 255, 0.95));
 }
 
 .sicopo-generator.done {
@@ -961,6 +976,11 @@ input[readonly] {
 .sicopo-generator.pending .sicopo-generator-head span {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.sicopo-generator.partial .sicopo-generator-head span {
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .sicopo-generator p {

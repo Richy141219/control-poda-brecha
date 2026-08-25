@@ -115,6 +115,7 @@ const elements = {
   dbBreakdownList: document.querySelector("#dbBreakdownList"),
   sicopoSearch: document.querySelector("#sicopoSearch"),
   sicopoPendingCount: document.querySelector("#sicopoPendingCount"),
+  sicopoPartialCount: document.querySelector("#sicopoPartialCount"),
   sicopoDoneCount: document.querySelector("#sicopoDoneCount"),
   sicopoTotalCount: document.querySelector("#sicopoTotalCount"),
   sicopoSummary: document.querySelector("#sicopoSummary"),
@@ -878,18 +879,24 @@ function renderSicopoPending() {
   const rows = getSicopoGeneratorRows();
   const query = (elements.sicopoSearch.value || "").trim().toLowerCase();
   const filteredRows = rows.filter((row) => {
-    const status = row.isPending ? "pendiente sicopo sin coordenadas" : "con coordenadas registrado listo";
+    const status = {
+      pending: "pendiente sicopo sin coordenadas rojo",
+      partial: "en proceso parcial amarillo",
+      done: "con coordenadas registrado listo verde"
+    }[row.statusType];
     const haystack = `${row.generator} ${row.place} ${row.circuit} ${row.structures} ${status}`.toLowerCase();
     return !query || haystack.includes(query);
   });
-  const pendingRows = rows.filter((row) => row.isPending);
-  const doneRows = rows.filter((row) => !row.isPending);
+  const pendingRows = rows.filter((row) => row.statusType === "pending");
+  const partialRows = rows.filter((row) => row.statusType === "partial");
+  const doneRows = rows.filter((row) => row.statusType === "done");
   const pendingDetails = rows.reduce((sum, row) => sum + row.pendingRecords, 0);
 
   elements.sicopoPendingCount.textContent = pendingRows.length.toLocaleString("es-MX");
+  elements.sicopoPartialCount.textContent = partialRows.length.toLocaleString("es-MX");
   elements.sicopoDoneCount.textContent = doneRows.length.toLocaleString("es-MX");
   elements.sicopoTotalCount.textContent = GENERATORS.length.toLocaleString("es-MX");
-  elements.sicopoSummary.textContent = `${pendingRows.length.toLocaleString("es-MX")} generadores siguen pendientes de coordenadas SICOPO, con ${pendingDetails.toLocaleString("es-MX")} renglones cargados para completar.`;
+  elements.sicopoSummary.textContent = `${pendingRows.length.toLocaleString("es-MX")} generadores estan en rojo sin coordenadas, ${partialRows.length.toLocaleString("es-MX")} estan en amarillo por avance parcial y quedan ${pendingDetails.toLocaleString("es-MX")} renglones SICOPO por completar.`;
 
   if (!filteredRows.length) {
     elements.sicopoGrid.innerHTML = `<div class="sicopo-empty">No se encontraron generadores con ese filtro.</div>`;
@@ -906,12 +913,17 @@ function renderSicopoPending() {
 function renderSicopoGeneratorCard(row) {
   const isOpen = row.isPending && activeSicopoGenerator === row.generator;
   const pendingList = isOpen ? renderSicopoPendingEditor(row.generator) : "";
+  const statusLabel = {
+    pending: "Pendiente SICOPO",
+    partial: "En proceso",
+    done: "Con coordenadas"
+  }[row.statusType];
 
   return `
-    <article class="sicopo-generator ${row.isPending ? "pending" : "done"} ${isOpen ? "expanded" : ""}">
+    <article class="sicopo-generator ${row.statusType} ${isOpen ? "expanded" : ""}">
       <div class="sicopo-generator-head">
         <strong>${escapeHtml(row.generator)}</strong>
-        <span>${row.isPending ? "Pendiente SICOPO" : "Con coordenadas"}</span>
+        <span>${statusLabel}</span>
       </div>
       <p>${escapeHtml(row.place || "Falta agregar coordenadas")}</p>
       <div class="sicopo-generator-meta">
@@ -1009,6 +1021,7 @@ function getSicopoGeneratorRows() {
 
   return Array.from(summary.values()).map((row) => ({
     ...row,
+    statusType: row.pendingRecords > 0 && row.hasCoordinates ? "partial" : row.pendingRecords > 0 || !row.hasCoordinates ? "pending" : "done",
     isPending: row.pendingRecords > 0 || !row.hasCoordinates,
     displayRecords: row.pendingRecords > 0 ? row.pendingRecords : row.records,
     displayTrees: row.pendingRecords > 0 ? row.pendingTrees : row.trees
