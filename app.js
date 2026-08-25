@@ -58,6 +58,7 @@ let sicopoPendings = loadSicopoPendings();
 let currentMode = localStorage.getItem(MODE_KEY) || "poda";
 let currentView = VALID_VIEWS.includes(localStorage.getItem(VIEW_KEY)) ? localStorage.getItem(VIEW_KEY) : "work";
 let databaseConnected = false;
+let activeSicopoGenerator = "";
 
 const elements = {
   form: document.querySelector("#recordForm"),
@@ -477,6 +478,11 @@ function getGeneratorSortValue(label) {
   return Number(normalized.split("-")[1]);
 }
 
+function getStructureSortValue(value) {
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : 9999;
+}
+
 function storeDatabaseTokenFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token");
@@ -872,12 +878,12 @@ function renderSicopoPending() {
   const rows = getSicopoGeneratorRows();
   const query = (elements.sicopoSearch.value || "").trim().toLowerCase();
   const filteredRows = rows.filter((row) => {
-    const status = row.hasCoordinates ? "con coordenadas registrado listo" : "pendiente sicopo sin coordenadas";
+    const status = row.isPending ? "pendiente sicopo sin coordenadas" : "con coordenadas registrado listo";
     const haystack = `${row.generator} ${row.place} ${row.circuit} ${row.structures} ${status}`.toLowerCase();
     return !query || haystack.includes(query);
   });
-  const pendingRows = rows.filter((row) => !row.hasCoordinates);
-  const doneRows = rows.filter((row) => row.hasCoordinates);
+  const pendingRows = rows.filter((row) => row.isPending);
+  const doneRows = rows.filter((row) => !row.isPending);
   const pendingDetails = rows.reduce((sum, row) => sum + row.pendingRecords, 0);
 
   elements.sicopoPendingCount.textContent = pendingRows.length.toLocaleString("es-MX");
@@ -890,28 +896,76 @@ function renderSicopoPending() {
     return;
   }
 
-  elements.sicopoGrid.innerHTML = filteredRows.map((row) => `
-    <article class="sicopo-generator ${row.hasCoordinates ? "done" : "pending"}">
-      <div class="sicopo-generator-head">
-        <strong>${escapeHtml(row.generator)}</strong>
-        <span>${row.hasCoordinates ? "Con coordenadas" : "Pendiente SICOPO"}</span>
-      </div>
-      <p>${escapeHtml(row.hasCoordinates ? row.place : "Falta agregar coordenadas")}</p>
-      <div class="sicopo-generator-meta">
-        <span>${escapeHtml(row.circuit || "Sin circuito")}</span>
-        <span>${row.displayRecords.toLocaleString("es-MX")} ${row.hasCoordinates ? "reg." : "pend."}</span>
-        <span>${row.displayTrees.toLocaleString("es-MX")} arboles</span>
-        ${row.structures ? `<span>Estructuras ${escapeHtml(row.structures)}</span>` : ""}
-      </div>
-      <button type="button" class="${row.hasCoordinates ? "secondary" : "danger"}" data-sicopo-action="${row.hasCoordinates ? "filter" : "capture"}" data-generator="${escapeHtml(row.generator)}">
-        ${row.hasCoordinates ? "Ver registros" : "Agregar coordenadas"}
-      </button>
-    </article>
-  `).join("");
+  elements.sicopoGrid.innerHTML = filteredRows.map(renderSicopoGeneratorCard).join("");
 
   elements.sicopoGrid.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", handleSicopoAction);
   });
+}
+
+function renderSicopoGeneratorCard(row) {
+  const isOpen = row.isPending && activeSicopoGenerator === row.generator;
+  const pendingList = isOpen ? renderSicopoPendingEditor(row.generator) : "";
+
+  return `
+    <article class="sicopo-generator ${row.isPending ? "pending" : "done"} ${isOpen ? "expanded" : ""}">
+      <div class="sicopo-generator-head">
+        <strong>${escapeHtml(row.generator)}</strong>
+        <span>${row.isPending ? "Pendiente SICOPO" : "Con coordenadas"}</span>
+      </div>
+      <p>${escapeHtml(row.place || "Falta agregar coordenadas")}</p>
+      <div class="sicopo-generator-meta">
+        <span>${escapeHtml(row.circuit || "Sin circuito")}</span>
+        <span>${row.displayRecords.toLocaleString("es-MX")} ${row.isPending ? "pend." : "reg."}</span>
+        <span>${row.displayTrees.toLocaleString("es-MX")} arboles</span>
+        ${row.structures ? `<span>Estructuras ${escapeHtml(row.structures)}</span>` : ""}
+      </div>
+      <button type="button" class="${row.isPending ? "danger" : "secondary"}" data-sicopo-action="${row.isPending ? "capture" : "filter"}" data-generator="${escapeHtml(row.generator)}">
+        ${row.isPending ? isOpen ? "Ocultar pendientes" : "Agregar coordenadas" : "Ver registros"}
+      </button>
+      ${pendingList}
+    </article>
+  `;
+}
+
+function renderSicopoPendingEditor(generator) {
+  const items = getSicopoPendingItems(generator);
+  if (!items.length) {
+    return `<div class="sicopo-pending-list"><p class="sicopo-empty">Este generador no tiene renglones SICOPO cargados.</p></div>`;
+  }
+
+  return `
+    <div class="sicopo-pending-list">
+      <div class="sicopo-pending-title">
+        <strong>Circuitos pendientes</strong>
+        <span>${items.length.toLocaleString("es-MX")} por completar</span>
+      </div>
+      ${items.map((item) => `
+        <div class="sicopo-pending-row" data-pending-id="${escapeHtml(item.id)}">
+          <div class="sicopo-pending-info">
+            <strong>${escapeHtml(item.circuito || "Sin circuito")}</strong>
+            <span>${escapeHtml(item.estructuras || "Sin estructuras")} / ${Number(item.arboles || 0).toLocaleString("es-MX")} arboles</span>
+          </div>
+          <label>
+            Latitud
+            <input data-sicopo-lat type="number" step="0.0000001" min="-90" max="90" placeholder="18.0000000">
+          </label>
+          <label>
+            Longitud
+            <input data-sicopo-lng type="number" step="0.0000001" min="-180" max="180" placeholder="-97.0000000">
+          </label>
+          <button type="button" data-sicopo-action="save-pending" data-pending-id="${escapeHtml(item.id)}">Guardar coordenadas</button>
+          <p class="sicopo-row-error" role="alert"></p>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function getSicopoPendingItems(generator) {
+  return sicopoPendings
+    .filter((item) => normalizeGenerator(item.generador) === generator)
+    .sort((a, b) => getStructureSortValue(a.estructuras) - getStructureSortValue(b.estructuras));
 }
 
 function getSicopoGeneratorRows() {
@@ -955,27 +1009,42 @@ function getSicopoGeneratorRows() {
 
   return Array.from(summary.values()).map((row) => ({
     ...row,
-    displayRecords: row.hasCoordinates ? row.records : row.pendingRecords,
-    displayTrees: row.hasCoordinates ? row.trees : row.pendingTrees
+    isPending: row.pendingRecords > 0 || !row.hasCoordinates,
+    displayRecords: row.pendingRecords > 0 ? row.pendingRecords : row.records,
+    displayTrees: row.pendingRecords > 0 ? row.pendingTrees : row.trees
   })).sort((a, b) => {
-    if (a.hasCoordinates !== b.hasCoordinates) return a.hasCoordinates ? 1 : -1;
-    if (!a.hasCoordinates && a.pendingRecords !== b.pendingRecords) return b.pendingRecords - a.pendingRecords;
+    if (a.isPending !== b.isPending) return a.isPending ? -1 : 1;
+    if (a.isPending && a.pendingRecords !== b.pendingRecords) return b.pendingRecords - a.pendingRecords;
     return getGeneratorSortValue(a.generator) - getGeneratorSortValue(b.generator);
   });
 }
 
 function handleSicopoAction(event) {
   const button = event.currentTarget;
+  const action = button.dataset.sicopoAction;
   const generator = normalizeGenerator(button.dataset.generator);
-  if (!generator) return;
 
   currentMode = "poda";
   localStorage.setItem(MODE_KEY, currentMode);
 
-  if (button.dataset.sicopoAction === "filter") {
+  if (action === "save-pending") {
+    saveSicopoPendingCoordinates(button);
+    return;
+  }
+
+  if (!generator) return;
+
+  if (action === "filter") {
     elements.generatorFilter.value = generator;
     setView("database");
     render();
+    return;
+  }
+
+  const pendingItems = getSicopoPendingItems(generator);
+  if (pendingItems.length) {
+    activeSicopoGenerator = activeSicopoGenerator === generator ? "" : generator;
+    renderSicopoPending();
     return;
   }
 
@@ -984,6 +1053,50 @@ function handleSicopoAction(event) {
   elements.generador.value = generator;
   elements.latitud.focus();
   elements.formPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function saveSicopoPendingCoordinates(button) {
+  const pendingId = button.dataset.pendingId;
+  const pending = sicopoPendings.find((item) => item.id === pendingId);
+  const row = button.closest(".sicopo-pending-row");
+  if (!pending || !row) return;
+
+  const errorElement = row.querySelector(".sicopo-row-error");
+  const lat = Number(row.querySelector("[data-sicopo-lat]").value);
+  const lng = Number(row.querySelector("[data-sicopo-lng]").value);
+
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+    errorElement.textContent = "Captura latitud y longitud validas antes de guardar.";
+    return;
+  }
+
+  const record = {
+    id: `coord-${pending.id}`,
+    fecha: pending.fecha || "",
+    fuente: pending.fuente ? `${pending.fuente} - coordenadas capturadas` : "SICOPO - coordenadas capturadas",
+    latitud: lat,
+    longitud: lng,
+    lugar: String(pending.lugar || "").trim().toUpperCase(),
+    circuito: String(pending.circuito || "").trim().toUpperCase(),
+    generador: normalizeGenerator(pending.generador),
+    tipoPoda: pending.tipoPoda || "B",
+    arboles: Number(pending.arboles || 0),
+    estructuras: String(pending.estructuras || "").trim()
+  };
+
+  const error = validateRecord(record, { requireGenerator: true });
+  if (error) {
+    errorElement.textContent = error;
+    return;
+  }
+
+  records.unshift(record);
+  sicopoPendings = sicopoPendings.filter((item) => item.id !== pendingId);
+  if (!getSicopoPendingItems(record.generador).length) {
+    activeSicopoGenerator = "";
+  }
+  markPendingChanges();
+  render();
 }
 
 function getActiveDatabaseList() {

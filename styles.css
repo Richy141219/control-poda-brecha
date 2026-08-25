@@ -929,6 +929,10 @@ input[readonly] {
   border-color: rgba(23, 107, 77, 0.2);
 }
 
+.sicopo-generator.expanded {
+  grid-column: 1 / -1;
+}
+
 .sicopo-generator-head {
   display: flex;
   justify-content: space-between;
@@ -972,6 +976,82 @@ input[readonly] {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.sicopo-pending-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(179, 38, 30, 0.18);
+}
+
+.sicopo-pending-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--danger);
+}
+
+.sicopo-pending-title strong {
+  font-size: 14px;
+}
+
+.sicopo-pending-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sicopo-pending-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.15fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid rgba(179, 38, 30, 0.16);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.sicopo-pending-info {
+  display: grid;
+  gap: 5px;
+  align-self: center;
+}
+
+.sicopo-pending-info strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.sicopo-pending-info span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.sicopo-pending-row label {
+  color: var(--danger);
+}
+
+.sicopo-pending-row input {
+  min-height: 38px;
+}
+
+.sicopo-pending-row button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.sicopo-row-error {
+  grid-column: 1 / -1;
+  min-height: 16px;
+  margin: -2px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .sicopo-empty {
@@ -1488,6 +1568,19 @@ tbody tr {
     gap: 10px;
   }
 
+  .sicopo-pending-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sicopo-pending-info,
+  .sicopo-row-error {
+    grid-column: 1 / -1;
+  }
+
+  .sicopo-pending-row button {
+    grid-column: 1 / -1;
+  }
+
   .database-card {
     min-height: 98px;
     padding: 13px;
@@ -1655,6 +1748,16 @@ tbody tr {
 
   .sicopo-overview {
     grid-template-columns: 1fr;
+  }
+
+  .sicopo-pending-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sicopo-pending-title {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 }
 
