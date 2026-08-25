@@ -3,6 +3,7 @@ const ROUTES_KEY = "poda-urbana-trayectorias-v1";
 const BRECHA_KEY = "brecha-registros-v1";
 const BRECHA_ROUTES_KEY = "brecha-trayectorias-v1";
 const SICOPO_KEY = "sicopo-pendientes-v1";
+const SICOPO_FILTER_KEY = "sicopo-filtro-estado-v1";
 const MODE_KEY = "control-poda-brecha-modo-v1";
 const VIEW_KEY = "control-poda-brecha-vista-v1";
 const PENDING_SYNC_KEY = "control-poda-brecha-sync-pendiente-v1";
@@ -59,6 +60,9 @@ let currentMode = localStorage.getItem(MODE_KEY) || "poda";
 let currentView = VALID_VIEWS.includes(localStorage.getItem(VIEW_KEY)) ? localStorage.getItem(VIEW_KEY) : "work";
 let databaseConnected = false;
 let activeSicopoGenerator = "";
+let sicopoStatusFilter = ["pending", "partial", "done", "all"].includes(localStorage.getItem(SICOPO_FILTER_KEY))
+  ? localStorage.getItem(SICOPO_FILTER_KEY)
+  : "pending";
 
 const elements = {
   form: document.querySelector("#recordForm"),
@@ -120,6 +124,7 @@ const elements = {
   sicopoTotalCount: document.querySelector("#sicopoTotalCount"),
   sicopoSummary: document.querySelector("#sicopoSummary"),
   sicopoGrid: document.querySelector("#sicopoGrid"),
+  sicopoFilterButtons: document.querySelectorAll("[data-sicopo-filter]"),
   chartPanel: document.querySelector("#chartPanel"),
   chartTitle: document.querySelector("#chartTitle"),
   chartSubtitle: document.querySelector("#chartSubtitle"),
@@ -155,6 +160,9 @@ elements.searchInput.addEventListener("input", render);
 elements.typeFilter.addEventListener("change", render);
 elements.generatorFilter.addEventListener("change", render);
 elements.sicopoSearch.addEventListener("input", renderSicopoPending);
+elements.sicopoFilterButtons.forEach((button) => {
+  button.addEventListener("click", () => setSicopoStatusFilter(button.dataset.sicopoFilter));
+});
 elements.importExcel.addEventListener("click", () => elements.excelInput.click());
 elements.excelInput.addEventListener("change", importExcel);
 elements.saveChanges.addEventListener("click", saveChanges);
@@ -879,13 +887,14 @@ function renderSicopoPending() {
   const rows = getSicopoGeneratorRows();
   const query = (elements.sicopoSearch.value || "").trim().toLowerCase();
   const filteredRows = rows.filter((row) => {
+    const matchesStatus = sicopoStatusFilter === "all" || row.statusType === sicopoStatusFilter;
     const status = {
       pending: "pendiente sicopo sin coordenadas rojo",
       partial: "en proceso parcial amarillo",
       done: "con coordenadas registrado listo verde"
     }[row.statusType];
     const haystack = `${row.generator} ${row.place} ${row.circuit} ${row.structures} ${status}`.toLowerCase();
-    return !query || haystack.includes(query);
+    return matchesStatus && (!query || haystack.includes(query));
   });
   const pendingRows = rows.filter((row) => row.statusType === "pending");
   const partialRows = rows.filter((row) => row.statusType === "partial");
@@ -896,7 +905,10 @@ function renderSicopoPending() {
   elements.sicopoPartialCount.textContent = partialRows.length.toLocaleString("es-MX");
   elements.sicopoDoneCount.textContent = doneRows.length.toLocaleString("es-MX");
   elements.sicopoTotalCount.textContent = GENERATORS.length.toLocaleString("es-MX");
-  elements.sicopoSummary.textContent = `${pendingRows.length.toLocaleString("es-MX")} generadores estan en rojo sin coordenadas, ${partialRows.length.toLocaleString("es-MX")} estan en amarillo por avance parcial y quedan ${pendingDetails.toLocaleString("es-MX")} renglones SICOPO por completar.`;
+  elements.sicopoSummary.textContent = `${filteredRows.length.toLocaleString("es-MX")} generadores visibles. ${pendingRows.length.toLocaleString("es-MX")} en rojo, ${partialRows.length.toLocaleString("es-MX")} en amarillo y ${pendingDetails.toLocaleString("es-MX")} renglones SICOPO por completar.`;
+  elements.sicopoFilterButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.sicopoFilter === sicopoStatusFilter);
+  });
 
   if (!filteredRows.length) {
     elements.sicopoGrid.innerHTML = `<div class="sicopo-empty">No se encontraron generadores con ese filtro.</div>`;
@@ -908,6 +920,14 @@ function renderSicopoPending() {
   elements.sicopoGrid.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", handleSicopoAction);
   });
+}
+
+function setSicopoStatusFilter(filter) {
+  if (!["pending", "partial", "done", "all"].includes(filter)) return;
+  sicopoStatusFilter = filter;
+  activeSicopoGenerator = "";
+  localStorage.setItem(SICOPO_FILTER_KEY, sicopoStatusFilter);
+  renderSicopoPending();
 }
 
 function renderSicopoGeneratorCard(row) {
@@ -1026,7 +1046,8 @@ function getSicopoGeneratorRows() {
     displayRecords: row.pendingRecords > 0 ? row.pendingRecords : row.records,
     displayTrees: row.pendingRecords > 0 ? row.pendingTrees : row.trees
   })).sort((a, b) => {
-    if (a.isPending !== b.isPending) return a.isPending ? -1 : 1;
+    const statusOrder = { pending: 0, partial: 1, done: 2 };
+    if (a.statusType !== b.statusType) return statusOrder[a.statusType] - statusOrder[b.statusType];
     if (a.isPending && a.pendingRecords !== b.pendingRecords) return b.pendingRecords - a.pendingRecords;
     return getGeneratorSortValue(a.generator) - getGeneratorSortValue(b.generator);
   });

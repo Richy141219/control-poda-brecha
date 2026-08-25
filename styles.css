@@ -910,6 +910,71 @@ input[readonly] {
   font-weight: 800;
 }
 
+.sicopo-filterbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 248, 0.9));
+  box-shadow: var(--shadow-soft);
+}
+
+.sicopo-filterbar strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.sicopo-filterbar p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sicopo-filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.sicopo-filter-actions button {
+  min-height: 34px;
+  border: 1px solid rgba(189, 203, 195, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  box-shadow: none;
+  font-size: 12px;
+}
+
+.sicopo-filter-actions button:hover {
+  background: #ffffff;
+  color: var(--primary-dark);
+  box-shadow: var(--shadow-soft);
+}
+
+.sicopo-filter-actions button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.sicopo-filter-actions button[data-sicopo-filter="pending"].active {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.sicopo-filter-actions button[data-sicopo-filter="partial"].active {
+  background: var(--warning);
+  border-color: var(--warning);
+}
+
 .sicopo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1588,6 +1653,14 @@ tbody tr {
     gap: 10px;
   }
 
+  .sicopo-filterbar {
+    grid-template-columns: 1fr;
+  }
+
+  .sicopo-filter-actions {
+    justify-content: flex-start;
+  }
+
   .sicopo-pending-row {
     grid-template-columns: 1fr 1fr;
   }
@@ -1768,6 +1841,11 @@ tbody tr {
 
   .sicopo-overview {
     grid-template-columns: 1fr;
+  }
+
+  .sicopo-filter-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .sicopo-pending-row {
