@@ -123,6 +123,7 @@ const elements = {
   sicopoDoneCount: document.querySelector("#sicopoDoneCount"),
   sicopoTotalCount: document.querySelector("#sicopoTotalCount"),
   sicopoSummary: document.querySelector("#sicopoSummary"),
+  sicopoStatusChart: document.querySelector("#sicopoStatusChart"),
   sicopoGrid: document.querySelector("#sicopoGrid"),
   sicopoFilterButtons: document.querySelectorAll("[data-sicopo-filter]"),
   chartPanel: document.querySelector("#chartPanel"),
@@ -906,6 +907,12 @@ function renderSicopoPending() {
   elements.sicopoDoneCount.textContent = doneRows.length.toLocaleString("es-MX");
   elements.sicopoTotalCount.textContent = GENERATORS.length.toLocaleString("es-MX");
   elements.sicopoSummary.textContent = `${filteredRows.length.toLocaleString("es-MX")} generadores visibles. ${pendingRows.length.toLocaleString("es-MX")} en rojo, ${partialRows.length.toLocaleString("es-MX")} en amarillo y ${pendingDetails.toLocaleString("es-MX")} renglones SICOPO por completar.`;
+  renderSicopoStatusChart({
+    pending: pendingRows.length,
+    partial: partialRows.length,
+    done: doneRows.length,
+    total: rows.length
+  });
   elements.sicopoFilterButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.sicopoFilter === sicopoStatusFilter);
   });
@@ -920,6 +927,47 @@ function renderSicopoPending() {
   elements.sicopoGrid.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", handleSicopoAction);
   });
+}
+
+function renderSicopoStatusChart(counts) {
+  const total = Math.max(counts.total || 0, 1);
+  const donePct = counts.done / total * 100;
+  const partialPct = counts.partial / total * 100;
+  const pendingPct = counts.pending / total * 100;
+  const partialStart = donePct;
+  const pendingStart = donePct + partialPct;
+  const chartBackground = `conic-gradient(var(--primary) 0 ${donePct.toFixed(2)}%, var(--warning) ${partialStart.toFixed(2)}% ${pendingStart.toFixed(2)}%, var(--danger) ${pendingStart.toFixed(2)}% 100%)`;
+  const rows = [
+    { label: "Completos", value: counts.done, percent: donePct, className: "done" },
+    { label: "En proceso", value: counts.partial, percent: partialPct, className: "partial" },
+    { label: "Pendientes", value: counts.pending, percent: pendingPct, className: "pending" }
+  ];
+
+  elements.sicopoStatusChart.innerHTML = `
+    <div class="sicopo-donut" style="background: ${chartBackground}" role="img" aria-label="Grafica de estado SICOPO por generador">
+      <div>
+        <strong>${counts.total.toLocaleString("es-MX")}</strong>
+        <span>generadores</span>
+      </div>
+    </div>
+    <div class="sicopo-chart-legend">
+      ${rows.map((row) => `
+        <div class="sicopo-chart-row ${row.className}">
+          <div class="sicopo-chart-label">
+            <span></span>
+            <strong>${row.label}</strong>
+          </div>
+          <div class="sicopo-chart-track" aria-hidden="true">
+            <span style="width: ${Math.max(row.percent, row.value ? 3 : 0).toFixed(2)}%"></span>
+          </div>
+          <div class="sicopo-chart-value">
+            <strong>${row.value.toLocaleString("es-MX")}</strong>
+            <small>${row.percent.toFixed(1)}%</small>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function setSicopoStatusFilter(filter) {
