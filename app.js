@@ -11,6 +11,7 @@ const SUPABASE_PUBLIC_KEY = "sb_publishable_AAUS4Qrl520qcoLyAZwiuQ_GMGN5riU";
 const SUPABASE_TABLE = "app_database";
 const LOCAL_DATABASE_API = "/api/database";
 const GENERATORS = Array.from({ length: 68 }, (_, index) => `PZO-${index + 1}`);
+const VALID_VIEWS = ["work", "database", "sicopo"];
 
 const seedRecords = [
   { latitud: 18.924187, longitud: -97.012468, lugar: "FORTIN", circuito: "FOR-04010", tipoPoda: "B", arboles: 60, estructuras: "76 - 77" },
@@ -53,7 +54,7 @@ let routes = loadRoutes();
 let brechaSegments = loadBrechaSegments();
 let brechaRoutes = loadBrechaRoutes();
 let currentMode = localStorage.getItem(MODE_KEY) || "poda";
-let currentView = localStorage.getItem(VIEW_KEY) || "work";
+let currentView = VALID_VIEWS.includes(localStorage.getItem(VIEW_KEY)) ? localStorage.getItem(VIEW_KEY) : "work";
 let databaseConnected = false;
 
 const elements = {
@@ -66,8 +67,10 @@ const elements = {
   viewSwitch: document.querySelector(".view-switch"),
   viewWork: document.querySelector("#viewWork"),
   viewDatabase: document.querySelector("#viewDatabase"),
+  viewSicopo: document.querySelector("#viewSicopo"),
   workView: document.querySelector("#workView"),
   databaseView: document.querySelector("#databaseView"),
+  sicopoView: document.querySelector("#sicopoView"),
   recordId: document.querySelector("#recordId"),
   brechaId: document.querySelector("#brechaId"),
   latitud: document.querySelector("#latitud"),
@@ -107,6 +110,12 @@ const elements = {
   dbSyncDetail: document.querySelector("#dbSyncDetail"),
   dbBreakdownTitle: document.querySelector("#dbBreakdownTitle"),
   dbBreakdownList: document.querySelector("#dbBreakdownList"),
+  sicopoSearch: document.querySelector("#sicopoSearch"),
+  sicopoPendingCount: document.querySelector("#sicopoPendingCount"),
+  sicopoDoneCount: document.querySelector("#sicopoDoneCount"),
+  sicopoTotalCount: document.querySelector("#sicopoTotalCount"),
+  sicopoSummary: document.querySelector("#sicopoSummary"),
+  sicopoGrid: document.querySelector("#sicopoGrid"),
   chartPanel: document.querySelector("#chartPanel"),
   chartTitle: document.querySelector("#chartTitle"),
   chartSubtitle: document.querySelector("#chartSubtitle"),
@@ -136,10 +145,12 @@ elements.modePoda.addEventListener("click", () => setMode("poda"));
 elements.modeBrecha.addEventListener("click", () => setMode("brecha"));
 elements.viewWork.addEventListener("click", () => setView("work"));
 elements.viewDatabase.addEventListener("click", () => setView("database"));
+elements.viewSicopo.addEventListener("click", () => setView("sicopo"));
 elements.cancelEdit.addEventListener("click", clearForm);
 elements.searchInput.addEventListener("input", render);
 elements.typeFilter.addEventListener("change", render);
 elements.generatorFilter.addEventListener("change", render);
+elements.sicopoSearch.addEventListener("input", renderSicopoPending);
 elements.importExcel.addEventListener("click", () => elements.excelInput.click());
 elements.excelInput.addEventListener("change", importExcel);
 elements.saveChanges.addEventListener("click", saveChanges);
@@ -486,9 +497,12 @@ function setMode(mode) {
 }
 
 function setView(view) {
+  if (!VALID_VIEWS.includes(view)) return;
+
   currentView = view;
   localStorage.setItem(VIEW_KEY, currentView);
   renderViewState();
+  renderSicopoPending();
 
   if (currentView === "work" && mapReady) {
     setTimeout(() => {
@@ -659,6 +673,7 @@ function render() {
     ? "Buscar segmento, hoja, metros o hectareas"
     : "Buscar lugar, circuito, generador o estructura";
   toggleFormModeFields();
+  renderSicopoPending();
 
   if (currentMode === "brecha") {
     const filtered = getFilteredBrechaSegments();
@@ -679,12 +694,16 @@ function render() {
 }
 
 function renderViewState() {
+  const isWork = currentView === "work";
   const isDatabase = currentView === "database";
+  const isSicopo = currentView === "sicopo";
   elements.viewSwitch.dataset.view = currentView;
-  elements.viewWork.classList.toggle("active", !isDatabase);
+  elements.viewWork.classList.toggle("active", isWork);
   elements.viewDatabase.classList.toggle("active", isDatabase);
-  elements.workView.classList.toggle("view-hidden", isDatabase);
+  elements.viewSicopo.classList.toggle("active", isSicopo);
+  elements.workView.classList.toggle("view-hidden", !isWork);
   elements.databaseView.classList.toggle("view-hidden", !isDatabase);
+  elements.sicopoView.classList.toggle("view-hidden", !isSicopo);
 }
 
 function toggleFormModeFields() {
@@ -830,6 +849,101 @@ function renderDatabaseChips(rows, emptyText) {
       <small>${escapeHtml(row.detail)}</small>
     </span>
   `).join("");
+}
+
+function renderSicopoPending() {
+  const rows = getSicopoGeneratorRows();
+  const query = (elements.sicopoSearch.value || "").trim().toLowerCase();
+  const filteredRows = rows.filter((row) => {
+    const status = row.hasCoordinates ? "con coordenadas registrado listo" : "pendiente sicopo sin coordenadas";
+    const haystack = `${row.generator} ${row.place} ${row.circuit} ${status}`.toLowerCase();
+    return !query || haystack.includes(query);
+  });
+  const pendingRows = rows.filter((row) => !row.hasCoordinates);
+  const doneRows = rows.filter((row) => row.hasCoordinates);
+
+  elements.sicopoPendingCount.textContent = pendingRows.length.toLocaleString("es-MX");
+  elements.sicopoDoneCount.textContent = doneRows.length.toLocaleString("es-MX");
+  elements.sicopoTotalCount.textContent = GENERATORS.length.toLocaleString("es-MX");
+  elements.sicopoSummary.textContent = `${pendingRows.length.toLocaleString("es-MX")} generadores siguen pendientes de coordenadas SICOPO y ${doneRows.length.toLocaleString("es-MX")} ya tienen registros.`;
+
+  if (!filteredRows.length) {
+    elements.sicopoGrid.innerHTML = `<div class="sicopo-empty">No se encontraron generadores con ese filtro.</div>`;
+    return;
+  }
+
+  elements.sicopoGrid.innerHTML = filteredRows.map((row) => `
+    <article class="sicopo-generator ${row.hasCoordinates ? "done" : "pending"}">
+      <div class="sicopo-generator-head">
+        <strong>${escapeHtml(row.generator)}</strong>
+        <span>${row.hasCoordinates ? "Con coordenadas" : "Pendiente SICOPO"}</span>
+      </div>
+      <p>${escapeHtml(row.hasCoordinates ? row.place : "Falta agregar coordenadas")}</p>
+      <div class="sicopo-generator-meta">
+        <span>${escapeHtml(row.circuit || "Sin circuito")}</span>
+        <span>${row.records.toLocaleString("es-MX")} reg.</span>
+        <span>${row.trees.toLocaleString("es-MX")} arboles</span>
+      </div>
+      <button type="button" class="${row.hasCoordinates ? "secondary" : "danger"}" data-sicopo-action="${row.hasCoordinates ? "filter" : "capture"}" data-generator="${escapeHtml(row.generator)}">
+        ${row.hasCoordinates ? "Ver registros" : "Agregar coordenadas"}
+      </button>
+    </article>
+  `).join("");
+
+  elements.sicopoGrid.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", handleSicopoAction);
+  });
+}
+
+function getSicopoGeneratorRows() {
+  const summary = new Map(GENERATORS.map((generator) => [generator, {
+    generator,
+    records: 0,
+    trees: 0,
+    place: "",
+    circuit: "",
+    hasCoordinates: false
+  }]));
+
+  records.forEach((record) => {
+    const generator = normalizeGenerator(record.generador);
+    if (!summary.has(generator)) return;
+
+    const row = summary.get(generator);
+    const hasCoordinates = Number.isFinite(Number(record.latitud)) && Number.isFinite(Number(record.longitud));
+    row.records += 1;
+    row.trees += Number(record.arboles || 0);
+    row.hasCoordinates = row.hasCoordinates || hasCoordinates;
+    if (!row.place && record.lugar) row.place = record.lugar;
+    if (!row.circuit && record.circuito) row.circuit = record.circuito;
+  });
+
+  return Array.from(summary.values()).sort((a, b) => {
+    if (a.hasCoordinates !== b.hasCoordinates) return a.hasCoordinates ? 1 : -1;
+    return getGeneratorSortValue(a.generator) - getGeneratorSortValue(b.generator);
+  });
+}
+
+function handleSicopoAction(event) {
+  const button = event.currentTarget;
+  const generator = normalizeGenerator(button.dataset.generator);
+  if (!generator) return;
+
+  currentMode = "poda";
+  localStorage.setItem(MODE_KEY, currentMode);
+
+  if (button.dataset.sicopoAction === "filter") {
+    elements.generatorFilter.value = generator;
+    setView("database");
+    render();
+    return;
+  }
+
+  setView("work");
+  render();
+  elements.generador.value = generator;
+  elements.latitud.focus();
+  elements.formPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function getActiveDatabaseList() {

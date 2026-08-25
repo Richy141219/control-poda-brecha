@@ -31,6 +31,7 @@
           <nav class="view-switch" aria-label="Vista">
             <button id="viewWork" type="button" class="view-button active">Trabajo</button>
             <button id="viewDatabase" type="button" class="view-button">Base de datos</button>
+            <button id="viewSicopo" type="button" class="view-button">Pendientes SICOPO</button>
           </nav>
 
           <span id="saveStatus" class="save-status" aria-live="polite">Sin cambios nuevos</span>
@@ -286,6 +287,39 @@
             <tbody id="recordsBody"></tbody>
           </table>
         </div>
+      </section>
+
+      <section id="sicopoView" class="sicopo-panel view-hidden" aria-labelledby="sicopoTitle">
+        <div class="sicopo-hero">
+          <div>
+            <p class="section-kicker">Pendientes de coordenadas</p>
+            <h2 id="sicopoTitle">Pendientes de coordenadas (SICOPO)</h2>
+            <p id="sicopoSummary">Generadores PZO que todavia necesitan coordenadas.</p>
+          </div>
+          <div class="sicopo-search">
+            <input id="sicopoSearch" type="search" placeholder="Buscar PZO o estado">
+          </div>
+        </div>
+
+        <div class="sicopo-overview" aria-label="Resumen SICOPO">
+          <div class="sicopo-card danger-state">
+            <span>Pendientes</span>
+            <strong id="sicopoPendingCount">0</strong>
+            <p>Sin coordenadas capturadas</p>
+          </div>
+          <div class="sicopo-card done-state">
+            <span>Con coordenadas</span>
+            <strong id="sicopoDoneCount">0</strong>
+            <p>Generadores ya registrados</p>
+          </div>
+          <div class="sicopo-card">
+            <span>Total PZO</span>
+            <strong id="sicopoTotalCount">68</strong>
+            <p>PZO-1 a PZO-68</p>
+          </div>
+        </div>
+
+        <div id="sicopoGrid" class="sicopo-grid" aria-live="polite"></div>
       </section>
       </main>
     </div>

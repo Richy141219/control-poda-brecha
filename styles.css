@@ -306,9 +306,21 @@ h2 {
     box-shadow var(--motion-base) ease;
 }
 
+.view-switch::before {
+  width: calc((100% - 18px) / 3);
+}
+
 .mode-switch[data-mode="brecha"]::before,
 .view-switch[data-view="database"]::before {
   transform: translateX(calc(100% + 4px));
+}
+
+.view-switch[data-view="sicopo"]::before {
+  transform: translateX(calc((100% + 4px) * 2));
+  background: linear-gradient(135deg, var(--danger), #d15b52);
+  box-shadow:
+    0 10px 24px rgba(179, 38, 30, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.18) inset;
 }
 
 .mode-switch[data-mode="brecha"]::before {
@@ -323,7 +335,7 @@ h2 {
 }
 
 .view-switch {
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
 }
 
 .mode-button,
@@ -411,7 +423,8 @@ h2 {
 }
 
 .work-view:not(.view-hidden),
-.table-panel:not(.view-hidden) {
+.table-panel:not(.view-hidden),
+.sicopo-panel:not(.view-hidden) {
   animation: viewEnter var(--motion-base) var(--ease-out) both;
 }
 
@@ -790,6 +803,185 @@ input[readonly] {
 .table-panel {
   grid-area: table;
   padding: 20px;
+}
+
+.sicopo-panel {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.sicopo-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 340px);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid rgba(179, 38, 30, 0.16);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(247, 228, 225, 0.88), rgba(255, 255, 255, 0.9) 55%),
+    var(--surface);
+}
+
+.sicopo-hero h2 {
+  margin: 0;
+  color: var(--danger);
+}
+
+.sicopo-hero p:not(.section-kicker) {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sicopo-search {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sicopo-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.sicopo-card {
+  min-height: 116px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #ffffff, #f8faf9);
+  box-shadow: var(--shadow-soft);
+}
+
+.sicopo-card.danger-state {
+  border-color: rgba(179, 38, 30, 0.22);
+  background: linear-gradient(135deg, var(--danger-soft), #ffffff);
+}
+
+.sicopo-card.done-state {
+  border-color: rgba(23, 107, 77, 0.22);
+  background: linear-gradient(135deg, var(--primary-soft), #ffffff);
+}
+
+.sicopo-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sicopo-card strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: 32px;
+  line-height: 1;
+}
+
+.sicopo-card.danger-state strong {
+  color: var(--danger);
+}
+
+.sicopo-card.done-state strong {
+  color: var(--primary-dark);
+}
+
+.sicopo-card p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sicopo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.sicopo-generator {
+  display: grid;
+  gap: 12px;
+  min-height: 188px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: var(--shadow-soft);
+  animation: cardEnter var(--motion-base) var(--ease-out) both;
+}
+
+.sicopo-generator.pending {
+  border-color: rgba(179, 38, 30, 0.28);
+  background:
+    linear-gradient(180deg, rgba(247, 228, 225, 0.82), rgba(255, 255, 255, 0.95));
+}
+
+.sicopo-generator.done {
+  border-color: rgba(23, 107, 77, 0.2);
+}
+
+.sicopo-generator-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.sicopo-generator-head strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.sicopo-generator-head span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 9px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.sicopo-generator.pending .sicopo-generator-head span {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.sicopo-generator p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.sicopo-generator-meta {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sicopo-empty {
+  padding: 18px;
+  border: 1px dashed rgba(179, 38, 30, 0.32);
+  border-radius: var(--radius);
+  color: var(--danger);
+  background: var(--danger-soft);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .database-overview {
@@ -1201,6 +1393,7 @@ tbody tr {
   .map-area,
   .table-panel,
   .chart-panel,
+  .sicopo-panel,
   .metric {
     box-shadow: none;
   }
@@ -1208,7 +1401,8 @@ tbody tr {
   .form-panel,
   .map-area,
   .table-panel,
-  .chart-panel {
+  .chart-panel,
+  .sicopo-panel {
     padding: 14px;
   }
 
@@ -1276,6 +1470,20 @@ tbody tr {
   }
 
   .database-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .sicopo-hero {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .sicopo-search {
+    justify-content: stretch;
+  }
+
+  .sicopo-overview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
@@ -1382,7 +1590,21 @@ tbody tr {
   }
 
   .view-switch {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+    border-radius: 10px;
+  }
+
+  .view-switch::before {
+    display: none;
+  }
+
+  .view-switch .view-button.active {
+    background: var(--primary);
+    color: #ffffff;
+  }
+
+  .view-switch[data-view="sicopo"] .view-button.active {
+    background: var(--danger);
   }
 
   .map {
@@ -1422,11 +1644,16 @@ tbody tr {
   .form-panel,
   .map-area,
   .table-panel,
-  .chart-panel {
+  .chart-panel,
+  .sicopo-panel {
     padding: 12px;
   }
 
   .database-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .sicopo-overview {
     grid-template-columns: 1fr;
   }
 }
