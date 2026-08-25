@@ -2,6 +2,7 @@ const STORAGE_KEY = "poda-urbana-registros-v1";
 const ROUTES_KEY = "poda-urbana-trayectorias-v1";
 const BRECHA_KEY = "brecha-registros-v1";
 const BRECHA_ROUTES_KEY = "brecha-trayectorias-v1";
+const SICOPO_KEY = "sicopo-pendientes-v1";
 const MODE_KEY = "control-poda-brecha-modo-v1";
 const VIEW_KEY = "control-poda-brecha-vista-v1";
 const PENDING_SYNC_KEY = "control-poda-brecha-sync-pendiente-v1";
@@ -53,6 +54,7 @@ let records = loadRecords();
 let routes = loadRoutes();
 let brechaSegments = loadBrechaSegments();
 let brechaRoutes = loadBrechaRoutes();
+let sicopoPendings = loadSicopoPendings();
 let currentMode = localStorage.getItem(MODE_KEY) || "poda";
 let currentView = VALID_VIEWS.includes(localStorage.getItem(VIEW_KEY)) ? localStorage.getItem(VIEW_KEY) : "work";
 let databaseConnected = false;
@@ -231,11 +233,24 @@ function loadBrechaRoutes() {
   }
 }
 
+function loadSicopoPendings() {
+  const stored = localStorage.getItem(SICOPO_KEY);
+  if (!stored) return [];
+
+  try {
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
   localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
   localStorage.setItem(BRECHA_KEY, JSON.stringify(brechaSegments));
   localStorage.setItem(BRECHA_ROUTES_KEY, JSON.stringify(brechaRoutes));
+  localStorage.setItem(SICOPO_KEY, JSON.stringify(sicopoPendings));
 }
 
 function markPendingChanges() {
@@ -364,7 +379,8 @@ function createDatabasePayload() {
     records,
     routes,
     brechaSegments,
-    brechaRoutes
+    brechaRoutes,
+    sicopoPendings
   };
 }
 
@@ -374,6 +390,7 @@ function applyDatabasePayload(payload) {
   if (Array.isArray(payload.routes)) routes = payload.routes;
   if (Array.isArray(payload.brechaSegments)) brechaSegments = payload.brechaSegments;
   if (Array.isArray(payload.brechaRoutes)) brechaRoutes = payload.brechaRoutes;
+  if (Array.isArray(payload.sicopoPendings)) sicopoPendings = payload.sicopoPendings;
 }
 
 async function syncPendingDatabase() {
@@ -856,16 +873,17 @@ function renderSicopoPending() {
   const query = (elements.sicopoSearch.value || "").trim().toLowerCase();
   const filteredRows = rows.filter((row) => {
     const status = row.hasCoordinates ? "con coordenadas registrado listo" : "pendiente sicopo sin coordenadas";
-    const haystack = `${row.generator} ${row.place} ${row.circuit} ${status}`.toLowerCase();
+    const haystack = `${row.generator} ${row.place} ${row.circuit} ${row.structures} ${status}`.toLowerCase();
     return !query || haystack.includes(query);
   });
   const pendingRows = rows.filter((row) => !row.hasCoordinates);
   const doneRows = rows.filter((row) => row.hasCoordinates);
+  const pendingDetails = rows.reduce((sum, row) => sum + row.pendingRecords, 0);
 
   elements.sicopoPendingCount.textContent = pendingRows.length.toLocaleString("es-MX");
   elements.sicopoDoneCount.textContent = doneRows.length.toLocaleString("es-MX");
   elements.sicopoTotalCount.textContent = GENERATORS.length.toLocaleString("es-MX");
-  elements.sicopoSummary.textContent = `${pendingRows.length.toLocaleString("es-MX")} generadores siguen pendientes de coordenadas SICOPO y ${doneRows.length.toLocaleString("es-MX")} ya tienen registros.`;
+  elements.sicopoSummary.textContent = `${pendingRows.length.toLocaleString("es-MX")} generadores siguen pendientes de coordenadas SICOPO, con ${pendingDetails.toLocaleString("es-MX")} renglones cargados para completar.`;
 
   if (!filteredRows.length) {
     elements.sicopoGrid.innerHTML = `<div class="sicopo-empty">No se encontraron generadores con ese filtro.</div>`;
@@ -881,8 +899,9 @@ function renderSicopoPending() {
       <p>${escapeHtml(row.hasCoordinates ? row.place : "Falta agregar coordenadas")}</p>
       <div class="sicopo-generator-meta">
         <span>${escapeHtml(row.circuit || "Sin circuito")}</span>
-        <span>${row.records.toLocaleString("es-MX")} reg.</span>
-        <span>${row.trees.toLocaleString("es-MX")} arboles</span>
+        <span>${row.displayRecords.toLocaleString("es-MX")} ${row.hasCoordinates ? "reg." : "pend."}</span>
+        <span>${row.displayTrees.toLocaleString("es-MX")} arboles</span>
+        ${row.structures ? `<span>Estructuras ${escapeHtml(row.structures)}</span>` : ""}
       </div>
       <button type="button" class="${row.hasCoordinates ? "secondary" : "danger"}" data-sicopo-action="${row.hasCoordinates ? "filter" : "capture"}" data-generator="${escapeHtml(row.generator)}">
         ${row.hasCoordinates ? "Ver registros" : "Agregar coordenadas"}
@@ -899,11 +918,26 @@ function getSicopoGeneratorRows() {
   const summary = new Map(GENERATORS.map((generator) => [generator, {
     generator,
     records: 0,
+    pendingRecords: 0,
     trees: 0,
+    pendingTrees: 0,
     place: "",
     circuit: "",
+    structures: "",
     hasCoordinates: false
   }]));
+
+  sicopoPendings.forEach((item) => {
+    const generator = normalizeGenerator(item.generador);
+    if (!summary.has(generator)) return;
+
+    const row = summary.get(generator);
+    row.pendingRecords += 1;
+    row.pendingTrees += Number(item.arboles || 0);
+    if (!row.place && item.lugar) row.place = item.lugar;
+    if (!row.circuit && item.circuito) row.circuit = item.circuito;
+    if (!row.structures && item.estructuras) row.structures = item.estructuras;
+  });
 
   records.forEach((record) => {
     const generator = normalizeGenerator(record.generador);
@@ -916,10 +950,16 @@ function getSicopoGeneratorRows() {
     row.hasCoordinates = row.hasCoordinates || hasCoordinates;
     if (!row.place && record.lugar) row.place = record.lugar;
     if (!row.circuit && record.circuito) row.circuit = record.circuito;
+    if (!row.structures && record.estructuras) row.structures = record.estructuras;
   });
 
-  return Array.from(summary.values()).sort((a, b) => {
+  return Array.from(summary.values()).map((row) => ({
+    ...row,
+    displayRecords: row.hasCoordinates ? row.records : row.pendingRecords,
+    displayTrees: row.hasCoordinates ? row.trees : row.pendingTrees
+  })).sort((a, b) => {
     if (a.hasCoordinates !== b.hasCoordinates) return a.hasCoordinates ? 1 : -1;
+    if (!a.hasCoordinates && a.pendingRecords !== b.pendingRecords) return b.pendingRecords - a.pendingRecords;
     return getGeneratorSortValue(a.generator) - getGeneratorSortValue(b.generator);
   });
 }
