@@ -148,6 +148,8 @@ const elements = {
   totalTipoA: document.querySelector("#totalTipoA"),
   totalTipoB: document.querySelector("#totalTipoB"),
   map: document.querySelector("#map"),
+  trackUserLocation: document.querySelector("#trackUserLocation"),
+  userLocationStatus: document.querySelector("#userLocationStatus"),
   mapSubtitle: document.querySelector("#mapSubtitle"),
   outlierBadge: document.querySelector("#outlierBadge"),
   excelInput: document.querySelector("#excelInput"),
@@ -190,16 +192,21 @@ elements.longitud.addEventListener("input", updatePreviewMarker);
 elements.usePodaGps.addEventListener("click", () => captureGpsLocation("poda"));
 elements.useBrechaStartGps.addEventListener("click", () => captureGpsLocation("brecha-start"));
 elements.useBrechaEndGps.addEventListener("click", () => captureGpsLocation("brecha-end"));
+elements.trackUserLocation.addEventListener("click", toggleUserLocationTracking);
 elements.brechaEfectivaM.addEventListener("input", updateCalculatedBrechaHectareas);
 elements.brechaAncho.addEventListener("input", updateCalculatedBrechaHectareas);
 window.addEventListener("resize", handleViewportResize);
 window.addEventListener("online", syncPendingDatabase);
 window.addEventListener("offline", updateConnectionStatus);
+window.addEventListener("beforeunload", stopUserLocationTracking);
 
 let mapInstance = null;
 let markerLayer = null;
 let routeLayer = null;
 let previewMarker = null;
+let userLocationMarker = null;
+let userAccuracyCircle = null;
+let userLocationWatchId = null;
 let mapReady = false;
 let activeChart = null;
 
@@ -870,6 +877,124 @@ function getGpsErrorMessage(error) {
     return "El GPS tardo demasiado. Intenta otra vez en un lugar con mejor senal.";
   }
   return "No se pudo capturar la ubicacion GPS.";
+}
+
+function toggleUserLocationTracking() {
+  if (userLocationWatchId !== null) {
+    stopUserLocationTracking();
+    return;
+  }
+
+  startUserLocationTracking();
+}
+
+function startUserLocationTracking() {
+  if (!mapReady) {
+    setMapTrackingStatus("El mapa aun no esta listo para mostrar tu ubicacion.", true);
+    return;
+  }
+
+  if (!("geolocation" in navigator)) {
+    setMapTrackingStatus("Este dispositivo o navegador no permite usar GPS.", true);
+    return;
+  }
+
+  if (!window.isSecureContext) {
+    setMapTrackingStatus("El seguimiento GPS requiere abrir la app con HTTPS.", true);
+    return;
+  }
+
+  elements.trackUserLocation.disabled = true;
+  setMapTrackingStatus("Activando seguimiento GPS...", false);
+
+  userLocationWatchId = navigator.geolocation.watchPosition(
+    (position) => {
+      elements.trackUserLocation.disabled = false;
+      elements.trackUserLocation.classList.add("active");
+      elements.trackUserLocation.textContent = "Detener seguimiento";
+      updateUserLocationMarker(position);
+    },
+    (error) => {
+      stopUserLocationTracking();
+      setMapTrackingStatus(getGpsErrorMessage(error), true);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 3000
+    }
+  );
+}
+
+function stopUserLocationTracking() {
+  if (userLocationWatchId !== null && "geolocation" in navigator) {
+    navigator.geolocation.clearWatch(userLocationWatchId);
+  }
+
+  userLocationWatchId = null;
+  elements.trackUserLocation.disabled = false;
+  elements.trackUserLocation.classList.remove("active");
+  elements.trackUserLocation.textContent = "Seguir mi ubicacion";
+  removeUserLocationMarker();
+  setMapTrackingStatus("GPS del mapa apagado.", false);
+}
+
+function updateUserLocationMarker(position) {
+  const lat = position.coords.latitude;
+  const lng = position.coords.longitude;
+  const accuracy = Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : 0;
+  const point = [lat, lng];
+
+  if (!userLocationMarker) {
+    userLocationMarker = L.circleMarker(point, {
+      radius: 8,
+      color: "#ffffff",
+      weight: 3,
+      fillColor: "#0b7cff",
+      fillOpacity: 0.95,
+      pane: "markerPane"
+    }).addTo(mapInstance);
+  } else {
+    userLocationMarker.setLatLng(point);
+  }
+
+  if (!userAccuracyCircle) {
+    userAccuracyCircle = L.circle(point, {
+      radius: Math.max(accuracy, 8),
+      color: "#0b7cff",
+      weight: 1,
+      fillColor: "#0b7cff",
+      fillOpacity: 0.12
+    }).addTo(mapInstance);
+  } else {
+    userAccuracyCircle.setLatLng(point);
+    userAccuracyCircle.setRadius(Math.max(accuracy, 8));
+  }
+
+  userLocationMarker.bindPopup(`
+    <strong>Mi ubicacion actual</strong>
+    <span>${formatCoordinate(lat)}, ${formatCoordinate(lng)}</span>
+    <span>Precision aproximada: ${accuracy.toLocaleString("es-MX")} m</span>
+  `);
+  mapInstance.setView(point, Math.max(mapInstance.getZoom(), 17), { animate: true });
+  setMapTrackingStatus(`Siguiendo ubicacion. Precision aproximada: ${accuracy.toLocaleString("es-MX")} m.`, false);
+}
+
+function removeUserLocationMarker() {
+  if (userLocationMarker) {
+    userLocationMarker.remove();
+    userLocationMarker = null;
+  }
+
+  if (userAccuracyCircle) {
+    userAccuracyCircle.remove();
+    userAccuracyCircle = null;
+  }
+}
+
+function setMapTrackingStatus(message, isError) {
+  elements.userLocationStatus.textContent = message;
+  elements.userLocationStatus.classList.toggle("error", isError);
 }
 
 function clearForm() {
