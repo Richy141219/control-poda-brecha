@@ -15,6 +15,7 @@ const SUPABASE_TABLE = "app_database";
 const LOCAL_DATABASE_API = "/api/database";
 const GENERATORS = Array.from({ length: 68 }, (_, index) => `PZO-${index + 1}`);
 const VALID_VIEWS = ["work", "database", "sicopo"];
+const CIRCUIT_COLORS = ["#176b4d", "#2257a8", "#c96f2b", "#7c3f2b", "#8a5b00", "#0f766e", "#6f42c1", "#b3261e"];
 
 const seedRecords = [
   { latitud: 18.924187, longitud: -97.012468, lugar: "FORTIN", circuito: "FOR-04010", tipoPoda: "B", arboles: 60, estructuras: "76 - 77" },
@@ -150,6 +151,7 @@ const elements = {
   map: document.querySelector("#map"),
   trackUserLocation: document.querySelector("#trackUserLocation"),
   userLocationStatus: document.querySelector("#userLocationStatus"),
+  mapCircuitLegend: document.querySelector("#mapCircuitLegend"),
   mapSubtitle: document.querySelector("#mapSubtitle"),
   outlierBadge: document.querySelector("#outlierBadge"),
   excelInput: document.querySelector("#excelInput"),
@@ -547,6 +549,86 @@ function getRouteSource(route) {
 
 function matchesSource(value, selectedSource) {
   return !selectedSource || value === selectedSource;
+}
+
+function getRecordCircuit(record) {
+  return normalizeCircuitLabel(record.circuito || "SIN CIRCUITO");
+}
+
+function getRouteCircuit(route) {
+  const haystack = `${route.circuito || ""} ${route.name || ""} ${route.source || ""}`;
+  const match = haystack.match(/\b([A-Z]{2,4})[-\s]?(\d{4,5})\b/i);
+  return match ? `${match[1].toUpperCase()}-${match[2]}` : "TRAYECTORIA KMZ";
+}
+
+function normalizeCircuitLabel(value) {
+  const text = String(value || "").trim().toUpperCase();
+  const match = text.match(/\b([A-Z]{2,4})[-\s]?(\d{4,5})\b/);
+  if (match) return `${match[1]}-${match[2]}`;
+  return text || "SIN CIRCUITO";
+}
+
+function getCircuitColor(circuit) {
+  const label = normalizeCircuitLabel(circuit);
+  let hash = 0;
+  for (let index = 0; index < label.length; index += 1) {
+    hash = (hash + label.charCodeAt(index) * (index + 1)) % 997;
+  }
+  return CIRCUIT_COLORS[hash % CIRCUIT_COLORS.length];
+}
+
+function getVisiblePodaCircuitRows(list, visibleRoutes) {
+  const totals = new Map();
+
+  list.forEach((record) => {
+    const circuit = getRecordCircuit(record);
+    const current = totals.get(circuit) || { label: circuit, points: 0, routes: 0, color: getCircuitColor(circuit) };
+    current.points += 1;
+    totals.set(circuit, current);
+  });
+
+  visibleRoutes.forEach((route) => {
+    const circuit = getRouteCircuit(route);
+    const current = totals.get(circuit) || { label: circuit, points: 0, routes: 0, color: getCircuitColor(circuit) };
+    current.routes += 1;
+    totals.set(circuit, current);
+  });
+
+  return Array.from(totals.values())
+    .sort((a, b) => a.label.localeCompare(b.label, "es-MX", { numeric: true }))
+    .slice(0, 10);
+}
+
+function renderMapCircuitLegend(rows, mode = "poda") {
+  if (mode === "brecha") {
+    elements.mapCircuitLegend.innerHTML = `
+      <strong>Simbologia</strong>
+      <span><i style="background:#1f8f4d"></i>Inicio</span>
+      <span><i style="background:#b3261e"></i>Fin</span>
+      <span><i style="background:#1f6feb"></i>Segmento brecha</span>
+      <span><i style="background:#6f42c1"></i>Ruta KMZ</span>
+    `;
+    return;
+  }
+
+  if (!rows.length) {
+    elements.mapCircuitLegend.innerHTML = `
+      <strong>Circuitos visibles</strong>
+      <span class="muted">Sin circuitos para los filtros actuales.</span>
+    `;
+    return;
+  }
+
+  elements.mapCircuitLegend.innerHTML = `
+    <strong>Circuitos visibles</strong>
+    ${rows.map((row) => `
+      <span title="${escapeHtml(row.label)}">
+        <i style="background:${row.color}"></i>
+        ${escapeHtml(row.label)}
+        <small>${row.points.toLocaleString("es-MX")} pts${row.routes ? ` / ${row.routes.toLocaleString("es-MX")} rutas` : ""}</small>
+      </span>
+    `).join("")}
+  `;
 }
 
 function normalizeGenerator(value) {
@@ -2349,6 +2431,8 @@ function renderBrechaTable(list) {
 
 function renderMap(list) {
   const visibleRoutes = getFilteredPodaRoutes();
+  const circuitRows = getVisiblePodaCircuitRows(list, visibleRoutes);
+  renderMapCircuitLegend(circuitRows, "poda");
 
   if (!mapReady) {
     elements.mapSubtitle.textContent = "El mapa necesita conexion para cargar OpenStreetMap.";
@@ -2361,6 +2445,7 @@ function renderMap(list) {
 
   const source = list;
   if (!source.length && !visibleRoutes.length) {
+    renderMapCircuitLegend([], "poda");
     elements.mapSubtitle.textContent = "No hay registros para mostrar.";
     removePreviewMarker();
     return;
@@ -2371,9 +2456,10 @@ function renderMap(list) {
 
   visibleRoutes.forEach((route) => {
     if (!Array.isArray(route.coordinates) || route.coordinates.length < 2) return;
+    const routeColor = getCircuitColor(getRouteCircuit(route));
 
     const polyline = L.polyline(route.coordinates, {
-      color: "#2257a8",
+      color: routeColor,
       weight: 4,
       opacity: 0.82
     }).bindPopup(createRoutePopup(route));
@@ -2384,8 +2470,8 @@ function renderMap(list) {
 
       L.circleMarker(point, {
         radius: index === 0 || index === route.coordinates.length - 1 ? 5 : 3,
-        color: "#ffffff",
-        weight: 1,
+        color: routeColor,
+        weight: 2,
         fillColor: index === 0 ? "#1f8f4d" : index === route.coordinates.length - 1 ? "#b3261e" : "#2257a8",
         fillOpacity: 0.9
       }).bindPopup(createRoutePointPopup(route, index)).addTo(routeLayer);
@@ -2393,10 +2479,11 @@ function renderMap(list) {
   });
 
   source.forEach((record) => {
+    const circuitColor = getCircuitColor(getRecordCircuit(record));
     const marker = L.circleMarker([record.latitud, record.longitud], {
       radius: Math.max(6, Math.min(18, 5 + Number(record.arboles) / 12)),
-      color: "#ffffff",
-      weight: 2,
+      color: circuitColor,
+      weight: 3,
       fillColor: record.tipoPoda === "A" ? "#176b4d" : "#d77c2f",
       fillOpacity: 0.9
     }).bindPopup(createPopup(record));
@@ -2415,6 +2502,7 @@ function renderMap(list) {
 
 function renderBrechaMap(list) {
   const visibleBrechaRoutes = getFilteredBrechaRoutes();
+  renderMapCircuitLegend([], "brecha");
 
   if (!mapReady) {
     elements.mapSubtitle.textContent = "El mapa necesita conexion para cargar OpenStreetMap.";
@@ -3144,7 +3232,7 @@ function removePreviewMarker() {
 function createPopup(record) {
   return `
     <strong>${escapeHtml(record.lugar)}</strong>
-    <span>Circuito: ${escapeHtml(record.circuito)}</span>
+    <span>Circuito: ${escapeHtml(getRecordCircuit(record))}</span>
     <span>Generador: ${escapeHtml(getRecordGenerator(record))}</span>
     <span>Tipo de poda: ${escapeHtml(record.tipoPoda)}</span>
     <span>Arboles: ${Number(record.arboles).toLocaleString("es-MX")}</span>
@@ -3157,6 +3245,7 @@ function createRoutePopup(route) {
   return `
     <strong>${escapeHtml(route.name)}</strong>
     <span>Trayectoria KMZ/KML</span>
+    <span>Circuito: ${escapeHtml(getRouteCircuit(route))}</span>
     <span>Archivo: ${escapeHtml(route.source)}</span>
     <span>Puntos de ruta: ${route.coordinates.length.toLocaleString("es-MX")}</span>
   `;
