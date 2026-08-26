@@ -764,6 +764,7 @@ function render() {
   renderViewState();
   populateSourceFilter();
   elements.typeFilter.disabled = currentMode === "brecha";
+  elements.typeFilter.classList.toggle("hidden", currentMode === "brecha");
   elements.generatorFilter.disabled = currentMode === "brecha";
   elements.generatorFilter.classList.toggle("hidden", currentMode === "brecha");
   elements.formTitle.textContent = currentMode === "brecha" ? "Nuevo segmento de brecha" : "Nuevo registro";

@@ -172,6 +172,21 @@
           </div>
           <span id="outlierBadge" class="warning-pill hidden">Revisar coordenadas</span>
         </div>
+        <div class="filters map-filters" aria-label="Filtros de mapa">
+          <input id="searchInput" type="search" placeholder="Buscar lugar, circuito o estructura">
+          <select id="typeFilter" aria-label="Filtrar por tipo de poda">
+            <option value="">Todos los tipos</option>
+            <option value="A">Tipo A</option>
+            <option value="B">Tipo B</option>
+            <option value="C">Tipo C</option>
+          </select>
+          <select id="generatorFilter" aria-label="Filtrar por generador" data-generator-select>
+            <option value="">Todos los generadores</option>
+          </select>
+          <select id="sourceFilter" aria-label="Filtrar por archivo o fuente">
+            <option value="">Todos los archivos/fuentes</option>
+          </select>
+        </div>
         <div id="map" class="map" role="application" aria-label="Mapa de coordenadas registradas"></div>
       </section>
 
@@ -254,21 +269,6 @@
             <p class="section-kicker">Base de datos</p>
             <h2 id="tableTitle">Registros</h2>
             <p id="tableCount">0 resultados</p>
-          </div>
-          <div class="filters">
-            <input id="searchInput" type="search" placeholder="Buscar lugar, circuito o estructura">
-            <select id="typeFilter" aria-label="Filtrar por tipo de poda">
-              <option value="">Todos los tipos</option>
-              <option value="A">Tipo A</option>
-              <option value="B">Tipo B</option>
-              <option value="C">Tipo C</option>
-            </select>
-            <select id="generatorFilter" aria-label="Filtrar por generador" data-generator-select>
-              <option value="">Todos los generadores</option>
-            </select>
-            <select id="sourceFilter" aria-label="Filtrar por archivo o fuente">
-              <option value="">Todos los archivos/fuentes</option>
-            </select>
           </div>
         </div>
 
