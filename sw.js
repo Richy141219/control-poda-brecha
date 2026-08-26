@@ -1,4 +1,4 @@
-const CACHE_NAME = "control-poda-brecha-v25";
+const CACHE_NAME = "control-poda-brecha-v26";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -42,19 +42,17 @@ self.addEventListener("fetch", (event) => {
   if (new URL(request.url).pathname.startsWith("/api/")) return;
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const networkFetch = fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached || caches.match("/index.html"));
-
-      return cached || networkFetch;
-    })
+    fetch(request)
+      .then((response) => {
+        if (response && response.status === 200) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      })
+      .catch(() => (
+        caches.match(request).then((cached) => cached || caches.match("/index.html"))
+      ))
   );
 });
 
