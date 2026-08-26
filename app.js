@@ -6,6 +6,7 @@ const SICOPO_KEY = "sicopo-pendientes-v1";
 const SICOPO_FILTER_KEY = "sicopo-filtro-estado-v1";
 const MODE_KEY = "control-poda-brecha-modo-v1";
 const VIEW_KEY = "control-poda-brecha-vista-v1";
+const SOURCE_FILTER_KEY = "control-poda-brecha-fuente-v1";
 const PENDING_SYNC_KEY = "control-poda-brecha-sync-pendiente-v1";
 const DATABASE_TOKEN_KEY = "control-poda-brecha-token-v1";
 const SUPABASE_URL = "https://laxrkoajrvbmesshbake.supabase.co";
@@ -103,6 +104,7 @@ const elements = {
   searchInput: document.querySelector("#searchInput"),
   typeFilter: document.querySelector("#typeFilter"),
   generatorFilter: document.querySelector("#generatorFilter"),
+  sourceFilter: document.querySelector("#sourceFilter"),
   recordsBody: document.querySelector("#recordsBody"),
   tableHeadRow: document.querySelector("#tableHeadRow"),
   tableTitle: document.querySelector("#tableTitle"),
@@ -160,6 +162,10 @@ elements.cancelEdit.addEventListener("click", clearForm);
 elements.searchInput.addEventListener("input", render);
 elements.typeFilter.addEventListener("change", render);
 elements.generatorFilter.addEventListener("change", render);
+elements.sourceFilter.addEventListener("change", () => {
+  localStorage.setItem(SOURCE_FILTER_KEY, elements.sourceFilter.value);
+  render();
+});
 elements.sicopoSearch.addEventListener("input", renderSicopoPending);
 elements.sicopoFilterButtons.forEach((button) => {
   button.addEventListener("click", () => setSicopoStatusFilter(button.dataset.sicopoFilter));
@@ -469,6 +475,64 @@ function populateGeneratorSelects() {
   });
 }
 
+function populateSourceFilter() {
+  const selected = localStorage.getItem(SOURCE_FILTER_KEY) || elements.sourceFilter.value;
+  const sources = getAvailableSources();
+
+  elements.sourceFilter.innerHTML = "";
+  elements.sourceFilter.appendChild(new Option("Todos los archivos/fuentes", ""));
+  sources.forEach((source) => {
+    elements.sourceFilter.appendChild(new Option(source, source));
+  });
+
+  elements.sourceFilter.value = sources.includes(selected) ? selected : "";
+  if (selected && !sources.includes(selected)) {
+    localStorage.removeItem(SOURCE_FILTER_KEY);
+  }
+}
+
+function getAvailableSources() {
+  const sources = new Set();
+
+  if (currentMode === "brecha") {
+    brechaSegments.forEach((segment) => sources.add(getBrechaSource(segment)));
+    brechaRoutes.forEach((route) => sources.add(getRouteSource(route)));
+  } else {
+    records.forEach((record) => sources.add(getPodaSource(record)));
+    routes.forEach((route) => sources.add(getRouteSource(route)));
+  }
+
+  return Array.from(sources)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, "es-MX", { numeric: true }));
+}
+
+function getPodaSource(record) {
+  if (record.archivo) return record.archivo;
+  if (record.fuente && String(record.fuente).includes("poda_arboles_zapopan_FOR04040")) {
+    return "poda_inspeccion_todos_juntos.kmz";
+  }
+  if (record.fuente) return record.fuente;
+  if (record.tipoPoda === "K" && record.estructuras) return record.estructuras;
+  return "Manual";
+}
+
+function getBrechaSource(segment) {
+  return segment.archivo || segment.fuente || segment.source || segment.sheet || "Manual";
+}
+
+function getRouteSource(route) {
+  if (route.archivo) return route.archivo;
+  if (route.source && String(route.source).includes("poda_arboles_zapopan_FOR04040")) {
+    return "poda_inspeccion_todos_juntos.kmz";
+  }
+  return route.source || route.name || "KMZ/KML";
+}
+
+function matchesSource(value, selectedSource) {
+  return !selectedSource || value === selectedSource;
+}
+
 function normalizeGenerator(value) {
   const text = String(value || "").trim().toUpperCase();
   const match = text.match(/^PZO[\s-]*(\d{1,2})$/);
@@ -698,6 +762,7 @@ function render() {
   elements.modePoda.classList.toggle("active", currentMode === "poda");
   elements.modeBrecha.classList.toggle("active", currentMode === "brecha");
   renderViewState();
+  populateSourceFilter();
   elements.typeFilter.disabled = currentMode === "brecha";
   elements.generatorFilter.disabled = currentMode === "brecha";
   elements.generatorFilter.classList.toggle("hidden", currentMode === "brecha");
@@ -761,20 +826,50 @@ function getFilteredRecords() {
   const query = elements.searchInput.value.trim().toLowerCase();
   const type = elements.typeFilter.value;
   const generator = elements.generatorFilter.value;
+  const source = elements.sourceFilter.value;
 
   return records.filter((record) => {
     const matchesType = !type || record.tipoPoda === type;
     const matchesGenerator = !generator || normalizeGenerator(record.generador) === generator;
-    const haystack = `${record.lugar} ${record.circuito} ${getRecordGenerator(record)} ${record.estructuras}`.toLowerCase();
-    return matchesType && matchesGenerator && (!query || haystack.includes(query));
+    const matchesFile = matchesSource(getPodaSource(record), source);
+    const haystack = `${record.lugar} ${record.circuito} ${getRecordGenerator(record)} ${record.estructuras} ${getPodaSource(record)}`.toLowerCase();
+    return matchesType && matchesGenerator && matchesFile && (!query || haystack.includes(query));
   });
 }
 
 function getFilteredBrechaSegments() {
   const query = elements.searchInput.value.trim().toLowerCase();
+  const source = elements.sourceFilter.value;
   return brechaSegments.filter((segment) => {
-    const haystack = `${segment.sheet} ${segment.numero} ${segment.totalM} ${segment.efectivaM} ${segment.hectareas}`.toLowerCase();
-    return !query || haystack.includes(query);
+    const matchesFile = matchesSource(getBrechaSource(segment), source);
+    const haystack = `${segment.sheet} ${segment.numero} ${segment.totalM} ${segment.efectivaM} ${segment.hectareas} ${getBrechaSource(segment)}`.toLowerCase();
+    return matchesFile && (!query || haystack.includes(query));
+  });
+}
+
+function getFilteredPodaRoutes() {
+  const query = elements.searchInput.value.trim().toLowerCase();
+  const generator = elements.generatorFilter.value;
+  const source = elements.sourceFilter.value;
+
+  return routes.filter((route) => {
+    const haystack = `${route.name} ${route.source} ${getRouteSource(route)} ${route.generador || ""}`.toLowerCase();
+    const matchesGenerator = !generator
+      || normalizeGenerator(route.generador) === generator
+      || haystack.includes(generator.toLowerCase());
+    const matchesFile = matchesSource(getRouteSource(route), source);
+    return matchesGenerator && matchesFile && (!query || haystack.includes(query));
+  });
+}
+
+function getFilteredBrechaRoutes() {
+  const query = elements.searchInput.value.trim().toLowerCase();
+  const source = elements.sourceFilter.value;
+
+  return brechaRoutes.filter((route) => {
+    const haystack = `${route.name} ${route.source} ${getRouteSource(route)}`.toLowerCase();
+    const matchesFile = matchesSource(getRouteSource(route), source);
+    return matchesFile && (!query || haystack.includes(query));
   });
 }
 
@@ -1997,6 +2092,8 @@ function renderBrechaTable(list) {
 }
 
 function renderMap(list) {
+  const visibleRoutes = getFilteredPodaRoutes();
+
   if (!mapReady) {
     elements.mapSubtitle.textContent = "El mapa necesita conexion para cargar OpenStreetMap.";
     elements.outlierBadge.classList.toggle("hidden", list.filter(isOutlier).length === 0);
@@ -2007,7 +2104,7 @@ function renderMap(list) {
   routeLayer.clearLayers();
 
   const source = list;
-  if (!source.length && !routes.length) {
+  if (!source.length && !visibleRoutes.length) {
     elements.mapSubtitle.textContent = "No hay registros para mostrar.";
     removePreviewMarker();
     return;
@@ -2016,7 +2113,7 @@ function renderMap(list) {
   const bounds = [];
   const outliers = list.filter(isOutlier);
 
-  routes.forEach((route) => {
+  visibleRoutes.forEach((route) => {
     if (!Array.isArray(route.coordinates) || route.coordinates.length < 2) return;
 
     const polyline = L.polyline(route.coordinates, {
@@ -2056,11 +2153,13 @@ function renderMap(list) {
     focusMapOnWorkZone(bounds, { padding: [28, 28], maxZoom: 16 });
   }
   updatePreviewMarker();
-  elements.mapSubtitle.textContent = `${source.length} puntos y ${routes.length} trayectorias visibles.`;
+  elements.mapSubtitle.textContent = `${source.length} puntos y ${visibleRoutes.length} trayectorias visibles.`;
   elements.outlierBadge.classList.toggle("hidden", outliers.length === 0);
 }
 
 function renderBrechaMap(list) {
+  const visibleBrechaRoutes = getFilteredBrechaRoutes();
+
   if (!mapReady) {
     elements.mapSubtitle.textContent = "El mapa necesita conexion para cargar OpenStreetMap.";
     elements.outlierBadge.classList.add("hidden");
@@ -2070,7 +2169,7 @@ function renderBrechaMap(list) {
   markerLayer.clearLayers();
   routeLayer.clearLayers();
 
-  if (!list.length && !brechaRoutes.length) {
+  if (!list.length && !visibleBrechaRoutes.length) {
     elements.mapSubtitle.textContent = "No hay segmentos de brecha para mostrar.";
     removePreviewMarker();
     return;
@@ -2109,7 +2208,7 @@ function renderBrechaMap(list) {
     displayPath.forEach((point) => bounds.push(point));
   });
 
-  brechaRoutes.forEach((route) => {
+  visibleBrechaRoutes.forEach((route) => {
     if (!Array.isArray(route.coordinates) || route.coordinates.length < 2) return;
 
     L.polyline(route.coordinates, {
@@ -2127,7 +2226,7 @@ function renderBrechaMap(list) {
   }
 
   removePreviewMarker();
-  elements.mapSubtitle.textContent = `${list.length} segmentos suavizados de brecha y ${brechaRoutes.length} trayectorias KMZ visibles.`;
+  elements.mapSubtitle.textContent = `${list.length} segmentos suavizados de brecha y ${visibleBrechaRoutes.length} trayectorias KMZ visibles.`;
   elements.outlierBadge.classList.add("hidden");
 }
 
@@ -2342,6 +2441,7 @@ async function importExcel(event) {
     }
 
     const imported = await readImportFile(file, extension);
+    tagImportedItems(imported, file.name);
 
     if (!imported.records.length && !imported.routes.length && !imported.brechaSegments.length && !imported.brechaRoutes.length) {
       elements.formError.textContent = "No se encontraron registros o trayectorias validas en el archivo.";
@@ -2353,6 +2453,7 @@ async function importExcel(event) {
     routes = [...imported.routes, ...routes];
     brechaSegments = [...imported.brechaSegments, ...brechaSegments];
     brechaRoutes = [...imported.brechaRoutes, ...brechaRoutes];
+    localStorage.setItem(SOURCE_FILTER_KEY, file.name);
     markPendingChanges();
     clearForm();
     render();
@@ -2362,6 +2463,25 @@ async function importExcel(event) {
   } finally {
     event.target.value = "";
   }
+}
+
+function tagImportedItems(imported, fileName) {
+  imported.records.forEach((record) => {
+    record.archivo = fileName;
+    record.fuente = record.fuente || fileName;
+  });
+  imported.routes.forEach((route) => {
+    route.archivo = fileName;
+    route.source = route.source || fileName;
+  });
+  imported.brechaSegments.forEach((segment) => {
+    segment.archivo = fileName;
+    segment.fuente = segment.fuente || segment.sheet || fileName;
+  });
+  imported.brechaRoutes.forEach((route) => {
+    route.archivo = fileName;
+    route.source = route.source || fileName;
+  });
 }
 
 async function readImportFile(file, extension) {
@@ -2529,25 +2649,55 @@ function getStableBendDirection(value) {
 }
 
 async function readKmzOrKmlFile(file, extension) {
-  const kmlText = extension === "kmz"
-    ? await extractKmlFromKmz(file)
-    : await file.text();
+  if (extension === "kml") {
+    return parseKml(await file.text(), file.name);
+  }
 
-  return parseKml(kmlText, file.name);
+  const kmlFiles = await extractKmlFilesFromKmz(file);
+  return kmlFiles.reduce((merged, kmlFile) => {
+    const imported = parseKml(kmlFile.text, kmlFile.source);
+    merged.records.push(...imported.records);
+    merged.routes.push(...imported.routes);
+    return merged;
+  }, { records: [], routes: [] });
 }
 
-async function extractKmlFromKmz(file) {
+async function extractKmlFilesFromKmz(file) {
   if (!globalThis.JSZip) {
     throw new Error("No se pudo cargar el lector de KMZ. Revisa la conexion a internet.");
   }
 
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
-  const kmlEntry = Object.values(zip.files).find((entry) => !entry.dir && entry.name.toLowerCase().endsWith(".kml"));
-  if (!kmlEntry) {
+  const kmlFiles = await extractKmlFilesFromZip(zip, file.name);
+  if (!kmlFiles.length) {
     throw new Error("El KMZ no contiene un archivo KML valido.");
   }
 
-  return kmlEntry.async("text");
+  return kmlFiles;
+}
+
+async function extractKmlFilesFromZip(zip, sourceName) {
+  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+  const kmlFiles = [];
+
+  for (const entry of entries) {
+    const lowerName = entry.name.toLowerCase();
+    if (lowerName.endsWith(".kml")) {
+      kmlFiles.push({
+        source: sourceName,
+        text: await entry.async("text")
+      });
+      continue;
+    }
+
+    if (lowerName.endsWith(".kmz")) {
+      const nestedZip = await JSZip.loadAsync(await entry.async("arraybuffer"));
+      const nestedName = entry.name.split(/[\\/]/).pop() || sourceName;
+      kmlFiles.push(...await extractKmlFilesFromZip(nestedZip, nestedName));
+    }
+  }
+
+  return kmlFiles;
 }
 
 function parseKml(kmlText, fileName) {
@@ -2571,6 +2721,7 @@ function parseKml(kmlText, fileName) {
         longitud: point[1],
         lugar: name.toUpperCase(),
         circuito: "KMZ",
+        fuente: fileName,
         tipoPoda: "K",
         arboles: 0,
         estructuras: fileName

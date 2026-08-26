@@ -1423,6 +1423,10 @@ input[readonly] {
   width: 190px;
 }
 
+.filters #sourceFilter {
+  width: 240px;
+}
+
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
