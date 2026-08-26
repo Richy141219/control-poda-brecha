@@ -1,4 +1,4 @@
-const CACHE_NAME = "control-poda-brecha-v26";
+const CACHE_NAME = "control-poda-brecha-v27";
 const APP_SHELL = [
   "/",
   "/index.html",
