@@ -769,6 +769,73 @@ input[readonly] {
   filter: hue-rotate(145deg) saturate(1.2);
 }
 
+.tree-marker-shell {
+  border: 0;
+  background: transparent;
+}
+
+.tree-marker {
+  position: relative;
+  display: block;
+  width: var(--tree-size);
+  height: calc(var(--tree-size) + 8px);
+  filter: drop-shadow(0 8px 12px rgba(18, 42, 30, 0.28));
+}
+
+.tree-marker-canopy {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: var(--tree-size);
+  height: var(--tree-size);
+  border: 3px solid var(--circuit-color);
+  border-radius: 54% 46% 50% 50%;
+  background:
+    radial-gradient(circle at 32% 34%, rgba(255, 255, 255, 0.28), transparent 24%),
+    linear-gradient(145deg, #218b58, #105f3a);
+  transform: translateX(-50%);
+}
+
+.tree-marker-b .tree-marker-canopy {
+  background:
+    radial-gradient(circle at 32% 34%, rgba(255, 255, 255, 0.32), transparent 24%),
+    linear-gradient(145deg, #d78a31, #9a501b);
+}
+
+.tree-marker-canopy::before,
+.tree-marker-canopy::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: inherit;
+}
+
+.tree-marker-canopy::before {
+  left: 11%;
+  top: 26%;
+  width: 44%;
+  height: 44%;
+}
+
+.tree-marker-canopy::after {
+  right: 9%;
+  top: 22%;
+  width: 48%;
+  height: 48%;
+}
+
+.tree-marker-trunk {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 22%;
+  height: 35%;
+  border: 2px solid rgba(91, 59, 33, 0.36);
+  border-radius: 3px 3px 6px 6px;
+  background: linear-gradient(180deg, #8a5a2f, #5f3b1f);
+  transform: translateX(-50%);
+}
+
 .map-fallback {
   display: grid;
   min-height: 100%;

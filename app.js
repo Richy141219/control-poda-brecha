@@ -577,6 +577,24 @@ function getCircuitColor(circuit) {
   return CIRCUIT_COLORS[hash % CIRCUIT_COLORS.length];
 }
 
+function createTreeMarkerIcon(record, circuitColor) {
+  const size = Math.max(28, Math.min(46, 24 + Number(record.arboles || 0) / 8));
+  const typeClass = record.tipoPoda === "A" ? "tree-marker-a" : "tree-marker-b";
+
+  return L.divIcon({
+    className: "tree-marker-shell",
+    iconSize: [size, size + 10],
+    iconAnchor: [size / 2, size + 6],
+    popupAnchor: [0, -size],
+    html: `
+      <span class="tree-marker ${typeClass}" style="--tree-size:${size}px; --circuit-color:${circuitColor};">
+        <span class="tree-marker-canopy"></span>
+        <span class="tree-marker-trunk"></span>
+      </span>
+    `
+  });
+}
+
 function getVisiblePodaCircuitRows(list, visibleRoutes) {
   const totals = new Map();
 
@@ -2480,12 +2498,9 @@ function renderMap(list) {
 
   source.forEach((record) => {
     const circuitColor = getCircuitColor(getRecordCircuit(record));
-    const marker = L.circleMarker([record.latitud, record.longitud], {
-      radius: Math.max(6, Math.min(18, 5 + Number(record.arboles) / 12)),
-      color: circuitColor,
-      weight: 3,
-      fillColor: record.tipoPoda === "A" ? "#176b4d" : "#d77c2f",
-      fillOpacity: 0.9
+    const marker = L.marker([record.latitud, record.longitud], {
+      icon: createTreeMarkerIcon(record, circuitColor),
+      title: `${record.lugar} - ${getRecordCircuit(record)}`
     }).bindPopup(createPopup(record));
 
     marker.addTo(markerLayer);
