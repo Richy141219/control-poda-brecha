@@ -75,6 +75,11 @@
             <input id="longitud" name="longitud" type="number" step="0.0000001" min="-180" max="180" required>
           </label>
 
+          <div class="gps-actions poda-field wide">
+            <button id="usePodaGps" type="button" class="secondary">Usar GPS actual</button>
+            <small id="gpsStatus">Listo para capturar ubicacion desde el dispositivo.</small>
+          </div>
+
           <label class="poda-field">
             Numero de arboles podados
             <input id="arboles" name="arboles" type="number" min="0" step="1" required>
@@ -124,6 +129,11 @@
             <input id="brechaLongInicio" name="brechaLongInicio" type="number" step="0.0000001" min="-180" max="180" required>
           </label>
 
+          <div class="gps-actions brecha-field wide">
+            <button id="useBrechaStartGps" type="button" class="secondary">GPS inicio</button>
+            <small id="gpsStartStatus">Captura el punto donde inicia el tramo.</small>
+          </div>
+
           <label class="brecha-field">
             Latitud fin
             <input id="brechaLatFin" name="brechaLatFin" type="number" step="0.0000001" min="-90" max="90" required>
@@ -133,6 +143,11 @@
             Longitud fin
             <input id="brechaLongFin" name="brechaLongFin" type="number" step="0.0000001" min="-180" max="180" required>
           </label>
+
+          <div class="gps-actions brecha-field wide">
+            <button id="useBrechaEndGps" type="button" class="secondary">GPS fin</button>
+            <small id="gpsEndStatus">Captura el punto donde termina el tramo.</small>
+          </div>
 
           <label class="brecha-field">
             Total m

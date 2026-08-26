@@ -493,6 +493,7 @@ label {
 }
 
 label.wide,
+.gps-actions,
 .form-error,
 .form-actions {
   grid-column: 1 / -1;
@@ -538,6 +539,33 @@ input[readonly] {
   background: var(--surface-soft);
   color: var(--primary-dark);
   font-weight: 900;
+}
+
+.gps-actions {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(189, 203, 195, 0.82);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(240, 247, 243, 0.74));
+}
+
+.gps-actions button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.gps-actions small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.gps-actions small.error {
+  color: var(--danger);
 }
 
 .form-error {
@@ -1787,6 +1815,14 @@ tbody tr {
   }
 
   .form-actions button {
+    width: 100%;
+  }
+
+  .gps-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .gps-actions button {
     width: 100%;
   }
 

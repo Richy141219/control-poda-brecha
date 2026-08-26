@@ -83,6 +83,8 @@ const elements = {
   brechaId: document.querySelector("#brechaId"),
   latitud: document.querySelector("#latitud"),
   longitud: document.querySelector("#longitud"),
+  usePodaGps: document.querySelector("#usePodaGps"),
+  gpsStatus: document.querySelector("#gpsStatus"),
   lugar: document.querySelector("#lugar"),
   circuito: document.querySelector("#circuito"),
   generador: document.querySelector("#generador"),
@@ -92,8 +94,12 @@ const elements = {
   brechaNumero: document.querySelector("#brechaNumero"),
   brechaLatInicio: document.querySelector("#brechaLatInicio"),
   brechaLongInicio: document.querySelector("#brechaLongInicio"),
+  useBrechaStartGps: document.querySelector("#useBrechaStartGps"),
+  gpsStartStatus: document.querySelector("#gpsStartStatus"),
   brechaLatFin: document.querySelector("#brechaLatFin"),
   brechaLongFin: document.querySelector("#brechaLongFin"),
+  useBrechaEndGps: document.querySelector("#useBrechaEndGps"),
+  gpsEndStatus: document.querySelector("#gpsEndStatus"),
   brechaTotalM: document.querySelector("#brechaTotalM"),
   brechaEfectivaM: document.querySelector("#brechaEfectivaM"),
   brechaAncho: document.querySelector("#brechaAncho"),
@@ -181,6 +187,9 @@ elements.exportCsv.addEventListener("click", exportCsv);
 elements.resetData.addEventListener("click", resetData);
 elements.latitud.addEventListener("input", updatePreviewMarker);
 elements.longitud.addEventListener("input", updatePreviewMarker);
+elements.usePodaGps.addEventListener("click", () => captureGpsLocation("poda"));
+elements.useBrechaStartGps.addEventListener("click", () => captureGpsLocation("brecha-start"));
+elements.useBrechaEndGps.addEventListener("click", () => captureGpsLocation("brecha-end"));
 elements.brechaEfectivaM.addEventListener("input", updateCalculatedBrechaHectareas);
 elements.brechaAncho.addEventListener("input", updateCalculatedBrechaHectareas);
 window.addEventListener("resize", handleViewportResize);
@@ -745,6 +754,124 @@ function calculateBrechaHectareas(efectivaM, ancho) {
   return Math.round((efectivaM * ancho / 10000) * 1000) / 1000;
 }
 
+function captureGpsLocation(target) {
+  elements.formError.textContent = "";
+
+  if (!("geolocation" in navigator)) {
+    setGpsStatus(target, "Este dispositivo o navegador no permite usar GPS.", true);
+    return;
+  }
+
+  if (!window.isSecureContext) {
+    setGpsStatus(target, "El GPS requiere abrir la app con HTTPS o localhost.", true);
+    return;
+  }
+
+  setGpsLoading(target, true);
+  setGpsStatus(target, "Buscando ubicacion GPS...", false);
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setGpsLoading(target, false);
+      applyGpsLocation(target, position);
+    },
+    (error) => {
+      setGpsLoading(target, false);
+      setGpsStatus(target, getGpsErrorMessage(error), true);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 18000,
+      maximumAge: 8000
+    }
+  );
+}
+
+function applyGpsLocation(target, position) {
+  const lat = Number(position.coords.latitude.toFixed(7));
+  const lng = Number(position.coords.longitude.toFixed(7));
+  const accuracy = Number.isFinite(position.coords.accuracy)
+    ? ` Precision aproximada: ${Math.round(position.coords.accuracy).toLocaleString("es-MX")} m.`
+    : "";
+
+  if (target === "poda") {
+    elements.latitud.value = lat;
+    elements.longitud.value = lng;
+    updatePreviewMarker();
+    setGpsStatus(target, `GPS capturado: ${formatCoordinate(lat)}, ${formatCoordinate(lng)}.${accuracy}`, false);
+    return;
+  }
+
+  if (target === "brecha-start") {
+    elements.brechaLatInicio.value = lat;
+    elements.brechaLongInicio.value = lng;
+    focusBrechaGpsPreview();
+    setGpsStatus(target, `Inicio capturado: ${formatCoordinate(lat)}, ${formatCoordinate(lng)}.${accuracy}`, false);
+    return;
+  }
+
+  elements.brechaLatFin.value = lat;
+  elements.brechaLongFin.value = lng;
+  focusBrechaGpsPreview();
+  setGpsStatus(target, `Fin capturado: ${formatCoordinate(lat)}, ${formatCoordinate(lng)}.${accuracy}`, false);
+}
+
+function focusBrechaGpsPreview() {
+  if (!mapReady) return;
+
+  const start = [Number(elements.brechaLatInicio.value), Number(elements.brechaLongInicio.value)];
+  const end = [Number(elements.brechaLatFin.value), Number(elements.brechaLongFin.value)];
+  const points = [start, end].filter((point) => {
+    return Number.isFinite(point[0]) && Number.isFinite(point[1]);
+  });
+
+  if (points.length === 1) {
+    mapInstance.setView(points[0], Math.max(mapInstance.getZoom(), 17));
+    return;
+  }
+
+  if (points.length === 2) {
+    focusMapOnWorkZone(points, { padding: [40, 40], maxZoom: 17 });
+  }
+}
+
+function setGpsLoading(target, loading) {
+  const buttons = getGpsButtons(target);
+  buttons.forEach((button) => {
+    button.disabled = loading;
+  });
+}
+
+function getGpsButtons(target) {
+  if (target === "poda") return [elements.usePodaGps];
+  if (target === "brecha-start") return [elements.useBrechaStartGps];
+  return [elements.useBrechaEndGps];
+}
+
+function setGpsStatus(target, message, isError) {
+  const status = target === "poda"
+    ? elements.gpsStatus
+    : target === "brecha-start"
+      ? elements.gpsStartStatus
+      : elements.gpsEndStatus;
+
+  status.textContent = message;
+  status.classList.toggle("error", isError);
+}
+
+function getGpsErrorMessage(error) {
+  if (error.code === error.PERMISSION_DENIED) {
+    return "Permiso de ubicacion rechazado. Activa la ubicacion del navegador e intenta de nuevo.";
+  }
+  if (error.code === error.POSITION_UNAVAILABLE) {
+    return "No se pudo obtener la ubicacion. Revisa que el GPS del celular este activo.";
+  }
+  if (error.code === error.TIMEOUT) {
+    return "El GPS tardo demasiado. Intenta otra vez en un lugar con mejor senal.";
+  }
+  return "No se pudo capturar la ubicacion GPS.";
+}
+
 function clearForm() {
   elements.form.reset();
   elements.recordId.value = "";
@@ -754,6 +881,9 @@ function clearForm() {
   elements.cancelEdit.classList.add("hidden");
   elements.generador.value = "";
   elements.tipoPoda.value = "A";
+  setGpsStatus("poda", "Listo para capturar ubicacion desde el dispositivo.", false);
+  setGpsStatus("brecha-start", "Captura el punto donde inicia el tramo.", false);
+  setGpsStatus("brecha-end", "Captura el punto donde termina el tramo.", false);
   removePreviewMarker();
 }
 
