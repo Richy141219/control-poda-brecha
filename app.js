@@ -588,7 +588,7 @@ function createTreeMarkerIcon(record, circuitColor) {
     popupAnchor: [0, -size],
     html: `
       <span class="tree-marker ${typeClass}" style="--tree-size:${size}px; --circuit-color:${circuitColor};">
-        <img class="tree-marker-art" src="assets/tree-marker.svg" alt="" draggable="false">
+        <img class="tree-marker-art" src="assets/${record.tipoPoda === "A" ? "tree-marker.svg" : "tree-marker-orange.svg"}" alt="" draggable="false">
         <span class="tree-marker-circuit"></span>
       </span>
     `
