@@ -578,7 +578,7 @@ function getCircuitColor(circuit) {
 }
 
 function createTreeMarkerIcon(record, circuitColor) {
-  const size = Math.max(28, Math.min(46, 24 + Number(record.arboles || 0) / 8));
+  const size = Math.max(38, Math.min(56, 34 + Number(record.arboles || 0) / 8));
   const typeClass = record.tipoPoda === "A" ? "tree-marker-a" : "tree-marker-b";
 
   return L.divIcon({
@@ -588,8 +588,8 @@ function createTreeMarkerIcon(record, circuitColor) {
     popupAnchor: [0, -size],
     html: `
       <span class="tree-marker ${typeClass}" style="--tree-size:${size}px; --circuit-color:${circuitColor};">
-        <span class="tree-marker-canopy"></span>
-        <span class="tree-marker-trunk"></span>
+        <img class="tree-marker-art" src="assets/tree-marker.svg" alt="" draggable="false">
+        <span class="tree-marker-circuit"></span>
       </span>
     `
   });
